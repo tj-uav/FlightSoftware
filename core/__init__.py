@@ -33,58 +33,10 @@ def load_config():
 
     return config
 
-
-def enter_normal_mode(reason: str = '') -> None:
-    """
-    Enter normal power mode.
-    :param reason: Reason for entering normal mode.
-    """
-    global current_mode
-    logger.warning(
-        f"Entering normal mode{'  Reason: ' if reason else ''}{reason}")
-    current_mode = mode.NORMAL
-
-    # Trigger the module hooks
-    for module in submodules:
-        if hasattr(module, 'enter_normal_mode'):
-            getattr(module, 'enter_normal_mode')()
-
-
-def enter_low_power_mode(reason: str = '') -> None:
-    """
-    Enter low power mode.
-    :param reason: Reason for entering low power mode.
-    """
-    global current_mode
-    logger.warning(
-        f"Entering low_power mode{'  Reason: ' if reason else ''}{reason}")
-    current_mode = mode.LOW_POWER
-
-    for module in submodules:  # Trigger the module hooks
-        if hasattr(module, 'enter_low_power_mode'):
-            getattr(module, 'enter_low_power_mode')()
-
-
-def enter_emergency_mode(reason: str = '') -> None:
-    """
-    Enter emergency power mode.
-    :param reason: Reason for entering emergency power mode.
-    """
-    global current_mode
-    logger.warning(
-        f"Entering emergency mode{'  Reason: ' if reason else ''}{reason}")
-    current_mode = mode.EMERGENCY
-
-    for module in submodules:  # Trigger the module hooks
-        if hasattr(module, 'enter_emergency_mode'):
-            getattr(module, 'enter_emergency_mode')()
-
-
 def start():
     global submodules
     # Load `config` from either default file or persistent config
     config = load_config()
-
     logger.debug("Config: ", config)
 
     # Ensure that logs directory exists
@@ -104,13 +56,10 @@ def start():
         if hasattr(module, 'start'):
             getattr(module, 'start')()
 
-    enter_normal_mode()  # Enter normal mode
     logger.debug("Entering main loop")
 
     # MAIN LOOP
     while True:
         time.sleep(1)
 
-
-current_mode = mode.NORMAL  # Default power mode
 submodules = []  # List of all active modules

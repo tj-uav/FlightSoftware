@@ -5,7 +5,7 @@ import time
 
 
 class ThreadHandler:
-    def __init__(self, target: callable, name: str = None, parent_logger=logging, interval: int = 3,
+    def __init__(self, target: callable, name: str = None, args: list = [], parent_logger=logging, interval: int = 3,
                  suppress_out: bool = False, auto_restart: bool = True):
         """
         Initialize a ThreadHandler.
@@ -42,7 +42,7 @@ class ThreadHandler:
         """
         Start the ThreadHandler. This function actually starts a threading.Thread, with the run() method as the target.
         """
-        threading.Thread(target=self.run, name=self.name, daemon=True).start()
+        threading.Thread(target=self.run, name=self.name, args=self.args, daemon=True).start()
 
     def run(self):
         while True:
