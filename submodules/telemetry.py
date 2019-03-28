@@ -1,137 +1,73 @@
 # TODO: Uses placeholder variables in other files, so make it use actual values
 # TODO: what if radio turned off during a burst?
-import base64
-import collections
+from Crypto.Cipher import AES
+import socket
 import logging
-import struct
 import time
 from functools import partial
 from threading import Lock
 
 from core import config
 from helpers.threadhandler import ThreadHandler
-from . import adcs
-from . import radio_output
 from .command_ingest import command
 
 logger = logging.getLogger("TELEMETRY")
-
-telem_packet_buffer = collections.deque(
-    maxlen=config['telemetry']['buffer_size'])
-event_packet_buffer = collections.deque(
-    maxlen=config['telemetry']['buffer_size'])
-packetBuffers = [event_packet_buffer, telem_packet_buffer]
-# TODO: Use an indexed system so that we have persistent log storage and querying
-packet_lock = Lock()
-
+BUFFER_SIZE = 1024 #Defualt/Starting buffer size
 
 def telemetry_send():
     """
     Thread method to burst the telemetry every so often
     """
     # TODO: check battery levels before sending
-    global telem_packet_buffer, event_packet_buffer
-    time.sleep(60)  # Don't send packets straight away
+    global packet_queue, sock_send
 
     while True:
-        if (adcs.can_TJ_be_seen() == True and len(telem_packet_buffer) + len(event_packet_buffer) > 0):
-            telemetry_send_once()
-        time.sleep(config['telemetry']['send_interval'])
+        if len(packet_queue > 0):
+            (send_message,send_buffer) = packet_queue.popleft()
+            if send_buffer > curr_buffer:
+                logger.debug("Setting ground station buffer to " + str(send_buffer))
+                sock_send.send("SET_BUFFER" + str(send_buffer))
+                time.sleep(config['telemetry']['send_interval'])
+            sock_send.send(send_message)
+            logger.debug("Sent message to ground station")
+            time.sleep(config['telemetry']['send_interval'])
 
-
-def telemetry_send_once():
+def telemetry_receive():
     """
-    Immediately send telemetry packets in both telemetry and event packet queues
+    Constantly looking for data from ground station to receive, sends message to command_ingest once received
     """
-    global telem_packet_buffer, event_packet_buffer
-    beg_count = len(telem_packet_buffer) + len(event_packet_buffer)
-    send()
-    logger.debug("Sent " + str(beg_count - len(telem_packet_buffer) -
-                               len(event_packet_buffer)) + " telemetry packets")
+    global conn
+    while True:
+        data = conn.recv(BUFFER_SIZE)
+        logger.debug("Received data from ground station")
+        plaintext = decrypt(data)
+        plaintext = data.decode("utf-8")
+        ingest_message(plaintext)
+        time.sleep(config['telemetry']['receive_interval'])
 
-
-@command("burst")
-def telemetry_burst_command():
-    """
-    Burst command; ignores isTJseen and other checks.
-    """
-    send(ignoreADCS=True)
-
-
-def enqueue_event_message(event):
+def enqueue(message):
     """
     Enqueue an event message.
-    :param event: message to enqueue. Maximum 16 bytes. If over then throws exception, if under then pads with '='
+    :param message: message to enqueue.
     """
+    global packet_queue
+    ciphertext = message.encode("utf-8")
+    ciphertext = encrypt(message)
+    buffer = len(ciphertext)
+    packet_queue.append((ciphertext,buffer))
+    logger.debug("Added message to queue")
 
-    if len(event.encode('utf-8')) > 16:
-        logger.error("Event message larger than 16 bytes, message is " +
-                     str(len(event.encode('utf-8'))) + " bytes long")
-        return
-    elif len(event.encode('utf-8')) != 16:
-        # logger.error("Event message must be exactly 16 bytes, message is " +
-        #             str(len(event.encode('utf-8'))) + " bytes long")
-        # return
-        while (len(event.encode('utf-8')) != 16):
-            event += "="
+def encrypt(plaintext): #Need to add padding (PKCS1_OAEP)
+    global key
+    encrypt_cipher = AES.new(key, AES.MODE_EAX)
+    ciphertext = encrypt_cipher.encrypt(plaintext)
+    return ciphertext
 
-    global event_packet_buffer, packet_lock
-    with packet_lock:
-        packet = "Z"
-        packet += str(base64.b64encode(struct.pack('d', time.time())))
-        packet += str(base64.b64encode(event))
-        event_packet_buffer.append(packet)
-
-
-def enqueue_submodule_packet(packet):
-    """
-    Accepts a single raw string packet and enqueues them into the telemetry packet buffer.
-    :param packet: A correctly formatted string subpacket to enqueue.
-    """
-    global telem_packet_buffer, packet_lock
-    with packet_lock:
-        telem_packet_buffer.append(packet)
-
-
-def enqueue_submodule_packets(packets):
-    """
-    Accepts raw string packets and enqueues them into the telemetry packet buffer.
-    :param packets: A list of string subpackets to enqueue. These packets must be formatted correctly
-    """
-    global telem_packet_buffer, packet_lock
-    with packet_lock:
-        for packet in packets:
-            telem_packet_buffer.append(packet)
-
-
-def send(ignoreADCS=False, radio='aprs'):
-    """
-    Concatenates packets to fit in max_packet_size (defined in config) and send through the APRS, dequing the packets in the process
-    :param ignoreADCS: If true, ignores ADCS canTJBeSeen.
-    :param radio: Radio to send telemetry over, either "aprs" or "iridium"
-    """
-    global packetBuffers, event_packet_buffer, telem_packet_buffer, packet_lock
-    squishedPackets = ""
-
-    with packet_lock:
-        # packet_lock.acquire()
-        while len(event_packet_buffer) + len(telem_packet_buffer) > 0 and (adcs.can_TJ_be_seen() or ignoreADCS):
-            for buffer in packetBuffers:
-                while len(buffer) > 0 and len(squishedPackets) < config['telemetry']['max_packet_size'] and (
-                        adcs.can_TJ_be_seen() or ignoreADCS):
-                    # test = buffer.pop()
-                    # print(test)
-                    # squishedPackets += test
-                    squishedPackets += buffer.pop()
-
-            # TODO: alternate between radios
-            logger.debug(squishedPackets)
-            radio_output.send(squishedPackets, radio)
-            squishedPackets = ""
-            time.sleep(6)
-
-    # packet_lock.release()
-
+def decrypt(ciphertext): #Need to add padding (PKCS1_OAEP)
+    global key
+    decrypt_cipher = AES.new(key, AES.MODE_EAX, cipher.nonce)
+    plaintext = decrypt_cipher.decrypt(ciphertext)
+    return plaintext
 
 @command("clear")
 def clear_buffers():
@@ -140,21 +76,30 @@ def clear_buffers():
         event_packet_buffer.clear()
         telem_packet_buffer.clear()
 
-
 def start():
     """
     Starts the telemetry send thread
     """
 
-    t2 = ThreadHandler(target=partial(telemetry_send),
+    global packet_queue, sock_send, sock_receive, conn
+    global key
+    key = get_random_bytes(16)
+    ground_ip = config['telemetry']['ground_ip']
+    port = config['telemetry']['port']
+    packet_queue = collections.deque([]) #Might wanna use priority queue instead
+
+    #Initialize sending sockets - Do we need separate sockets for sending and receiving?
+    sock_send = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock_send.connect((ground_ip,port))
+
+    sock_receive = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock_receive.bind(())
+    sock_receive.listen(1)
+    conn, addr = sock_receive.accept()
+
+    t1 = ThreadHandler(target=partial(telemetry_send),
                        name="telemetry-telemetry_send")
+    t1.start()
+    t2 = ThreadHandler(target=partial(telemetry_receive),
+                       name="telemetry-telemetry_receive")
     t2.start()
-
-
-# TODO: Need to know what needs to be done in low power and emergency modes.
-def enter_emergency_mode():
-    pass  # TODO: change config
-
-
-def enter_low_power_mode():
-    pass

@@ -5,6 +5,7 @@ core:
         - command_ingest
         - telemetry
         - ugv
+        - interop
     log_dir: logs
     config_save_interval: 60
 autopilot:
@@ -14,5 +15,6 @@ telemetry:
     ground_ip: '127.0.0.1'
     port: 5005
     send_interval: 30
+    receive_interval: 30
     buffer_size: 100
     max_packet_size: 170
