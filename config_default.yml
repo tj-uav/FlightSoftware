@@ -11,6 +11,8 @@ core:
 autopilot:
     #s3
     serial_port: /dev/ttyAMA0
+detection:
+  rgb_filename: "auxillary/RGB_Colors.txt"
 telemetry:
     ground_ip: '127.0.0.1'
     port: 5005

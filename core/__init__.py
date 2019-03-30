@@ -6,8 +6,6 @@ import time
 import yaml
 
 from helpers.threadhandler import ThreadHandler
-from . import mode
-from . import power
 
 config = None  # Prevents IDE from throwing errors about not finding `config`
 
@@ -34,7 +32,7 @@ def load_config():
     return config
 
 def start():
-    global submodules
+    global submodules, config
     # Load `config` from either default file or persistent config
     config = load_config()
     logger.debug("Config: ", config)
