@@ -54,14 +54,14 @@ def process_image(original_img, object_img):
 #Classify color based on pixel range
 #Ignore pixels in the ignore_range
 #Range of pixels is given by array of [x,y] values
-def get_color(image,main_range,ignore_range = None):
+def get_color(image,main_mask,ignore_mask = None):
     global rgbcolor_dict
     colorlist = {}
     new_range = []
     if ignore_range is None:
-        ignore_range = []
+        new_range = main_range
     else:
-
+        new_range = main_range[]
     for [x,y] in range():
         for rgb_value in row:
             [r,g,b] = rgb_value
@@ -82,7 +82,7 @@ def classify_alpha(object_img, color):
 
 #Return current gps data of the plane
 def get_gps_data():
-    pass
+    from 
 
 def get_camera_angle():
     pass
