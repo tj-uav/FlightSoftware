@@ -4,16 +4,14 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [dev-packages]
-autopep8 = "*"
 
 [packages]
-PyYAML = == "3.13"
-pyserial = "*"
 numpy = "*"
-maplotlib = "*"
+matplotlib = "*"
+opencv-python = "*"
 tensorflow = "*"
-dronekit = "*"
-
+cntk = {file = "https://cntk.ai/PythonWheel/CPU-Only/cntk-2.4-cp27-cp27m-win_amd64.whl"}
+keras = "*"
 
 [requires]
-python_version <= "3.6"
+python_version = "2.7"

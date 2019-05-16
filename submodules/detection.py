@@ -1,38 +1,66 @@
 import cv2
 import keras
 from keras.datasets import mnist
-from keras.models import Sequential, model_from_json
-from keras.layers import *
-from keras.optimizers import *
+from keras.models import model_from_json
 import numpy as np
-from tqdm import tqdm
 import cv2
-from random import shuffle
-import os
-import matplotlib.pyplot as plt
 from core import config
+from helpers.threadhandler import ThreadHandler
+from functools import partial
 
 #List of objects currently being detected
 active_objects = []
+cascades = {} #Cascade for each shape
+shapes = ["triangle"]
+alphaNetwork = None
+shapeNetwork = None
+bufferFraction = 0.25
+colors_dict = {}
 
 def start():
-    global rgbcolor_dict
-    rgbcolor_dict = {}
-    filename = config['detection']['rgb_filename']
-    try:
-        file = open(filename,"r")
-        lines = file.readlines()
-        for line in lines:
-            rgb,color = line.split(" ")
-            rgb = rgb[1:len(rgb)-1]
-            rgbcolor_dict[rgb] = color
-    except:
-        logger.debug("File not found")
+    for shape in shapes:
+        cascade = cv2.CascadeClassifier("xml_files/"+shape+"_cascade.xml")
+        cascades[shape] = cascade
 
+    colors_dict = load_colors(config['detection']['colors_filename'])
+    alphaNetwork = load_model(config['detection']['alphanumeric_model_name'])
+    shapeNetwork = load_model(config['detection']['shape_model_name'])
+
+
+    t = ThreadHandler(target=partial(haar_cascade), args=[]
+                       name="video-haar_cascade")
+    t.start()
     #Initialize neural networks, haar cascade, other stuff
     pass
 
-def haar_cascade(image):
+def load_colors(filename):
+    colors = {}
+    colors_file = open(filename + '.txt', 'r')
+    lines = colors_file.readlines()
+    for line in lines:
+        line = line.strip()
+        split = line.split(":")
+        color = split[0].strip()
+        hex = split[1].strip()
+        r = int(hex,16)
+        g = int(hex,16)
+        b = int(hex,16)
+        colors[color] = [r,g,b]
+    return colors
+
+def load_model(model_name):
+    # load json and create model
+    json_file = open(model_name+'.json', 'r')
+    loaded_model_json = json_file.read()
+    json_file.close()
+    model = model_from_json(loaded_model_json)
+    # load weights into new model
+    model.load_weights(model_name+".h5")
+    print("Loaded model from " + model_name)
+    return model
+
+
+def haar_cascade():
     #If ROI detected:
     t = ThreadHandler(target=partial(process_image), args=[image,object_image]
                        name="detection-process_image")
@@ -54,23 +82,18 @@ def process_image(original_img, object_img):
 #Classify color based on pixel range
 #Ignore pixels in the ignore_range
 #Range of pixels is given by array of [x,y] values
-def get_color(image,main_mask,ignore_mask = None):
-    global rgbcolor_dict
-    colorlist = {}
-    new_range = []
-    if ignore_range is None:
-        new_range = main_range
-    else:
-        new_range = main_range[]
-    for [x,y] in range():
-        for rgb_value in row:
-            [r,g,b] = rgb_value
-            color = rgbcolor_dict[rgb_value]
-            if color in colorlist:
-                colorlist[color] += 1
-            else:
-                colorlist[color] = 1
-    return max(colorlist)
+def get_color_name(rgb_triplet):
+    minname = ""
+    mindiff = float("inf")
+    for color in colors_dict:
+        rgb = colors_dict[color]
+        rd = (rgb[0] - rgb_triplet[0]) ** 2
+        gd = (rgb[1] - rgb_triplet[1]) ** 2
+        bd = (rgb[2] - rgb_triplet[2]) ** 2
+        if rd + gd + bd < mindiff:
+            mindiff = rd + gd + bd
+            minname = color
+    return minname
 
 #Classify the shape using tensorflow neural network
 def classify_shape(object_img, color):
@@ -82,7 +105,7 @@ def classify_alpha(object_img, color):
 
 #Return current gps data of the plane
 def get_gps_data():
-    from 
+    pass
 
 def get_camera_angle():
     pass

@@ -1,7 +1,6 @@
 import logging
 import cv2
 import time
-from submodules import getFrame
 from submodules import telemetry 
 
 logger = logging.getLogger("CI")
@@ -13,6 +12,7 @@ def ingest_message():
     """
     logger.debug("Ingesting message")
     pass
+
 
 def send_image():
     while(cap.isOpened()):
