@@ -1,0 +1,4 @@
+pixhawk comms (telemetry, maybe upload waypoints)
+bullet (gs) comms (video), for anything localization
+odcl (image capturing, gimbal control, image processing, ml algorithms)
+ugv control (linear actuator, deciding when to drop)
