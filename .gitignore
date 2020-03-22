@@ -21,7 +21,9 @@ phone/ImageSaver/.gradle/
 phone/ImageSaver/.idea/
 phone/ImageSaver/gradle/
 phone/ImageSaver/build.gradle
-phone/ImageSaver/gradlew/
-phone/ImageSaver/gradlew.bat/
-phone/ImageSaver/ImageSaver.iml/
-phone/ImageSaver/local.properties/
+phone/ImageSaver/gradlew.properties
+phone/ImageSaver/gradlew
+phone/ImageSaver/gradlew.bat
+phone/ImageSaver/ImageSaver.iml
+phone/ImageSaver/local.properties
+phone/ImageSaver/settings.gradle
