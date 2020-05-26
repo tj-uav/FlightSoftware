@@ -15,3 +15,5 @@ __pycache__/
 
 # ADCS TLE backup file
 backup_tle.txt
+
+config.json
