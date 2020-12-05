@@ -1,15 +1,8 @@
-import cv2
-import io
-import socket
-import struct
-import time
-import pickle
-import zlib
-import sys
+import cv2, io, socket, struct, time, os, sys
+import pickle, zlib, base64, numpy
 from PIL import Image
 from io import BytesIO
-import base64
-import numpy
+
 
 MY_IP = '127.0.0.1'
 OTHER_IP = '127.0.0.1'
@@ -51,6 +44,9 @@ def send(cameraVal):
 
 def receive():
     global MY_IP, PORT
+    if not os.path.exists('imageStream'):
+        os.makedirs('imageStream')
+
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.bind((MY_IP, PORT))
     sock.listen(1)
@@ -78,7 +74,7 @@ def receive():
             byte_obj = io.BytesIO(img_data)
 
             img = Image.open(byte_obj)
-            img.save('imageStream/' + str(imageCounter), format='JPEG')
+            img.save('imageStream/' + str(imageCounter)+'.jpg', format='JPEG')
             #img.show()
             print(imageCounter)
         else:
