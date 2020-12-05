@@ -3,8 +3,7 @@ import pickle, zlib, base64, numpy
 from PIL import Image
 from io import BytesIO
 
-
-MY_IP = '127.0.0.1'
+MY_IP = '169.254.2.215'
 OTHER_IP = '127.0.0.1'
 PORT = 5005 # Arbitrary
 quality = 35
@@ -53,30 +52,27 @@ def receive():
     conn, addr = sock.accept()
 
     imageCounter=0
+    t0=time.time()
 
     while True:
         img_data = b''
         imageCounter += 1
-        # b = True
-        # while b:
-        #     received = conn.recv(1024)
-        #     if img_data and received == b'':
-        #         break 
-        #         b=False
-        #     else:
-        #         img_data += received
-        #         print(received)
         received = conn.recv(9999999)
         if received:
-            img_data += received
-            print("Received image")
-            #print(img_data)
-            byte_obj = io.BytesIO(img_data)
-
-            img = Image.open(byte_obj)
-            img.save('imageStream/' + str(imageCounter)+'.jpg', format='JPEG')
-            #img.show()
-            print(imageCounter)
+            while True:
+                img_data += received
+                
+                try:
+                    byte_obj = io.BytesIO(img_data)
+                    img = Image.open(byte_obj)
+                    img.save('imageStream/' + str(imageCounter)+'.jpg', format='JPEG')
+                    with open('log.txt', 'a') as f:
+                        f.write(str(len(received))+' '+str(time.time()-t0)+''+'\n')
+                    print('Received image', imageCounter)
+                    break
+                except:
+                    received = conn.recv(9999999)
+                    continue
         else:
             break
     
