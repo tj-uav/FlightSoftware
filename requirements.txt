@@ -1,3 +1,4 @@
 python-dotenv
 requests
 python-socketio[client]
+opencv-contrib-python

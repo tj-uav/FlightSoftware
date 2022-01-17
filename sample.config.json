@@ -2,5 +2,12 @@
     "groundstation": {
         "host": "127.0.0.1",
         "port": 4000
+    },
+    "image": {
+        "dummy": true,
+        "gimbal": false,
+        "device": 1,
+        "width": 4208,
+        "height": 3120
     }
 }
