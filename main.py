@@ -54,4 +54,4 @@ def disconnect():
     print("[ ERROR ] Connection to GroundStation was closed, possibly due to program termination. FlightSoftware is attempting to re-initiate a connection.")
 
 
-sio.connect("http://localhost:4000")
+sio.connect(f"http://{config['groundstation']['host']}:{config['groundstation']['port']}")
