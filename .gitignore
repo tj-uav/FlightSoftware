@@ -17,3 +17,7 @@ __pycache__/
 backup_tle.txt
 
 config.json
+.env
+
+/images/*
+!/images/sample.png

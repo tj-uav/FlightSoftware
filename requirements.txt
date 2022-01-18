@@ -1,4 +1,7 @@
 python-dotenv
 requests
 python-socketio[client]
-opencv-contrib-python
+
+# Images
+opencv-python
+gpiozero
