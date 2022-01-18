@@ -1,13 +1,17 @@
 {
     "groundstation": {
-        "host": "127.0.0.1",
+        "dummy": true,
+        "host": "localhost",
         "port": 4000
     },
     "image": {
         "dummy": true,
-        "gimbal": false,
         "device": 1,
         "width": 4208,
         "height": 3120
+    },
+    "gimbal": {
+        "dummy": true,
+        "pin": 4
     }
 }
