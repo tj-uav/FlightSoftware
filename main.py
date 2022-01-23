@@ -34,6 +34,7 @@ HEIGHT = config["image"]["height"]
 
 img_counter = 0
 img_send_counter = 0
+img_delay = 0
 
 existing_files = len([name for name in os.listdir("images") if os.path.isfile(os.path.join("images", name)) and name.endswith(".png")])
 if existing_files > 1:
@@ -44,14 +45,18 @@ button = None if config["gimbal"]["dummy"] else gpiozero.Button(config["gimbal"]
 
 
 def take_images(sock):
-    global img_counter
+    global img_counter, img_delay
     cam = cv.VideoCapture(config["image"]["device"])  # , cv.CAP_DSHOW)
     cam.set(3, WIDTH)
     cam.set(4, HEIGHT)
     while True:
-        sock.sleep(0.5)
+        sock.sleep(0.1)
+        img_delay -= 0.1
         if not config["gimbal"]["dummy"] and not button.is_pressed:  # If the gimbal exists and is not ready to take pictures
             print("[ INFO  ] Waiting for confirmation from gimbal")
+            continue  # Wait longer
+        if img_delay > 0:
+            print("[ INFO  ] Waiting for cooldown")
             continue  # Wait longer
         ret, frame = cam.read()
         if not ret:
@@ -67,13 +72,14 @@ def take_images(sock):
         cv.imwrite(f"images/image_{img_counter}.png", frame)
         print(f"[ INFO  ] {img_counter} saved.")
         img_counter += 1
+        img_delay = 1.5  # Start a timeout for 1.5 seconds until the next image is taken
 
 
 def dummy_take_images(sock):
     global img_counter
     img = os.getenv("IMAGE")
     while True:
-        sock.sleep(1.1)  # Account for delay in saving images
+        sock.sleep(1.6)  # Account for delay in saving images
         with open(f"images/image_{img_counter}.png", "wb") as image_file:
             image_file.write(base64.b64decode(img))
         print(f"[ INFO  ] {img_counter} saved.")
@@ -83,7 +89,7 @@ def dummy_take_images(sock):
 def send_images(sock):
     global img_send_counter
     while True:
-        sock.sleep(1)  # Delay for one second before sending images
+        sock.sleep(1.4)  # Delay for one second before sending images
         try:
             if img_send_counter < img_counter:
                 with open(f"images/image_{img_send_counter}.png", "rb") as image_file:
@@ -98,9 +104,9 @@ def send_images(sock):
 def dummy_send_images():
     global img_send_counter
     while True:
-        time.sleep(1)
+        time.sleep(1.4)
         if img_send_counter < img_counter:
-            print(f"[ INFO  ] {img_send_counter} sent!")
+            print(f"[ INFO  ] {img_send_counter} dummy sent!")
             img_send_counter += 1
 
 
