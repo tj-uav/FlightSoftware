@@ -3,5 +3,5 @@ requests
 python-socketio[client]
 
 # Images
-opencv-python==4.5.3.56
+opencv-python
 gpiozero
