@@ -1,7 +1,4 @@
 python-dotenv
-requests
-python-socketio[client]
-
-# Images
+flask
 opencv-python
-gpiozero
+black

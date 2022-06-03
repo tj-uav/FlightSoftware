@@ -1,17 +1,9 @@
 {
-    "groundstation": {
-        "dummy": true,
-        "host": "localhost",
-        "port": 4000
-    },
     "image": {
         "dummy": true,
         "device": 1,
         "width": 4208,
-        "height": 3120
-    },
-    "gimbal": {
-        "dummy": true,
-        "pin": 4
+        "height": 3120,
+        "quality": 95
     }
 }
