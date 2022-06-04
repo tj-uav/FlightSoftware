@@ -86,6 +86,7 @@ def index():
 
 @app.route("/last_image")
 def get_last_image():
+
     return {"result": last_image}
 
 
@@ -97,11 +98,6 @@ def image(image_id):
     return send_file(filename, mimetype="image/png")
 
 
-def run_server():
-    app.run()  #host="0.0.0.0", port=4000, debug=True)
-
-
 if __name__ == "__main__":
-    webserver = threading.Thread(target=run_server)
-    webserver.start()
     take_images()
+    app.run(host="0.0.0.0", port=4000, debug=True, threaded=True)
