@@ -1,5 +1,5 @@
 import json
-import os.path
+import os
 import sys
 
 from flask import Flask, send_file
@@ -13,7 +13,6 @@ with open("config.json", "r") as file:
 
 app = Flask(__name__)
 
-last_image: int = -1
 lock = threading.Lock()
 
 
@@ -29,9 +28,19 @@ def stop():
     return False
 
 
+def get_img_cnt() -> int:
+    with open("img_cnt.txt", "r", encoding="utf-8") as file:
+        return int(file.read())
+
+
+def set_img_cnt(cnt: int):
+    with open("img_cnt.txt", "w", encoding="utf-8") as file:
+        file.write(str(cnt))
+
+
 def take_image(cam: cv.VideoCapture):
     if stop():
-        log("Detected content in \"stop.txt\" file. Images will no longer be taken.")
+        log('Detected content in "stop.txt" file. Images will no longer be taken.')
         sys.exit()
     with lock:
         threading.Timer(2.0, take_image, [cam]).start()
@@ -39,14 +48,16 @@ def take_image(cam: cv.VideoCapture):
         if not ret:
             return False
         log("Captured frame")
-        global last_image
-        last_image += 1
+        last_image = get_img_cnt() + 1
+        set_img_cnt(last_image)
         img_quality = config["image"]["quality"]
         if img_quality == -1:
             cv.imwrite(f"assets/images/{last_image}.png", frame)
         else:
             cv.imwrite(
-                f"assets/images/{last_image}.jpg", frame, [int(cv.IMWRITE_JPEG_QUALITY), img_quality]
+                f"assets/images/{last_image}.jpg",
+                frame,
+                [int(cv.IMWRITE_JPEG_QUALITY), img_quality],
             )
         log("Saved image " + str(last_image))
         return True
@@ -54,12 +65,12 @@ def take_image(cam: cv.VideoCapture):
 
 def take_dummy_image():
     if stop():
-        log("Detected content in \"stop.txt\" file. Images will no longer be taken.")
+        log('Detected content in "stop.txt" file. Images will no longer be taken.')
         sys.exit()
     with lock:
         threading.Timer(2.0, take_dummy_image).start()
-        global last_image
-        last_image += 1
+        last_image = get_img_cnt() + 1
+        set_img_cnt(last_image)
         cv.imwrite(f"assets/images/{last_image}.png", cv.imread("sample.png"))
         cv.imwrite(
             f"assets/images/{last_image}.jpg",
@@ -86,18 +97,22 @@ def index():
 
 @app.route("/last_image")
 def get_last_image():
-
-    return {"result": last_image}
+    return {"result": get_img_cnt()}
 
 
 @app.route("/image/<int:image_id>")
 def image(image_id):
-    if image_id > last_image:
+    if image_id > get_img_cnt():
         return {"result": "Image not found"}
-    filename = f"assets/images/{image_id}.jpg" if config["image"]["quality"] > 0 else f"assets/images/{image_id}.png"
+    filename = (
+        f"assets/images/{image_id}.jpg"
+        if config["image"]["quality"] > 0
+        else f"assets/images/{image_id}.png"
+    )
     return send_file(filename, mimetype="image/png")
 
 
 if __name__ == "__main__":
+    set_img_cnt(-1)
     take_images()
     app.run(host="0.0.0.0", port=4000, debug=True, threaded=True)
