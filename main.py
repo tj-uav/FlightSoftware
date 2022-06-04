@@ -1,141 +1,118 @@
-import base64
 import json
 import os
 import sys
-import time
-from threading import Thread
 
+from flask import Flask, send_file
+import threading
 import cv2 as cv
-import gpiozero
-import socketio
-from dotenv import load_dotenv
-
-print("""--------------------
-FlightSoftware requires a connection to GroundStation in order to send images. \
-Make sure GroundStation is running and is accepting connections. 
-Clone GroundStation using any of the following commands:
-
-    git clone git@github.com:tj-uav/GroundStation.git
-    git clone https://github.com/tj-uav/GroundStation.git
-
-Make sure to run the 'app.py' file to start the socket connection.
---------------------
-""")
-
-sys.tracebacklimit = 0
-
-load_dotenv()
+import datetime
 
 with open("config.json", "r") as file:
     config = json.load(file)
 
-WIDTH = config["image"]["width"]
-HEIGHT = config["image"]["height"]
 
-img_counter = 0
-img_send_counter = 0
-img_delay = 0
+app = Flask(__name__)
 
-existing_files = len([name for name in os.listdir("images") if os.path.isfile(os.path.join("images", name)) and name.endswith(".png")])
-if existing_files > 1:
-    img_counter = existing_files - 1
-    img_send_counter = existing_files - 1
-
-button = None if config["gimbal"]["dummy"] else gpiozero.Button(config["gimbal"]["pin"], pull_up=False)
+lock = threading.Lock()
 
 
-def take_images(sock):
-    global img_counter, img_delay
-    cam = cv.VideoCapture(config["image"]["device"])  # , cv.CAP_DSHOW)
-    cam.set(3, WIDTH)
-    cam.set(4, HEIGHT)
-    while True:
-        sock.sleep(0.1)
-        img_delay -= 0.1
-        if not config["gimbal"]["dummy"] and not button.is_pressed:  # If the gimbal exists and is not ready to take pictures
-            print("[ INFO  ] Waiting for confirmation from gimbal")
-            continue  # Wait longer
-        if img_delay > 0:
-            print("[ INFO  ] Waiting for cooldown")
-            continue  # Wait longer
+def log(text: str):
+    print(str(datetime.datetime.now()) + " | " + text)
+    with open("fs.log", "a", encoding="utf-8") as file:
+        file.write(str(datetime.datetime.now()) + " | " + text + "\n")
+
+
+def stop():
+    if os.path.getsize("stop.txt") > 0:
+        return True
+    return False
+
+
+def get_img_cnt() -> int:
+    with open("img_cnt.txt", "r", encoding="utf-8") as file:
+        return int(file.read())
+
+
+def set_img_cnt(cnt: int):
+    with open("img_cnt.txt", "w", encoding="utf-8") as file:
+        file.write(str(cnt))
+
+
+def take_image(cam: cv.VideoCapture):
+    if stop():
+        log('Detected content in "stop.txt" file. Images will no longer be taken.')
+        sys.exit()
+    with lock:
+        threading.Timer(2.0, take_image, [cam]).start()
         ret, frame = cam.read()
         if not ret:
-            print("[ ERROR ] Failed to grab frame from camera")
-            continue
-        print(f"[ INFO  ] {img_counter} saving...")
-        cv.imwrite(f"images/image_{img_counter}_100.jpg", frame, [int(cv.IMWRITE_JPEG_QUALITY), 100])
-        cv.imwrite(f"images/image_{img_counter}_095.jpg", frame, [int(cv.IMWRITE_JPEG_QUALITY), 95])
-        cv.imwrite(f"images/image_{img_counter}_090.jpg", frame, [int(cv.IMWRITE_JPEG_QUALITY), 90])
-        cv.imwrite(f"images/image_{img_counter}_075.jpg", frame, [int(cv.IMWRITE_JPEG_QUALITY), 75])
-        cv.imwrite(f"images/image_{img_counter}_050.jpg", frame, [int(cv.IMWRITE_JPEG_QUALITY), 50])
-        cv.imwrite(f"images/image_{img_counter}.bmp", frame)
-        cv.imwrite(f"images/image_{img_counter}.png", frame)
-        print(f"[ INFO  ] {img_counter} saved.")
-        img_counter += 1
-        img_delay = 1.5  # Start a timeout for 1.5 seconds until the next image is taken
+            return False
+        log("Captured frame")
+        last_image = get_img_cnt() + 1
+        set_img_cnt(last_image)
+        img_quality = config["image"]["quality"]
+        if img_quality == -1:
+            cv.imwrite(f"assets/images/{last_image}.png", frame)
+        else:
+            cv.imwrite(
+                f"assets/images/{last_image}.jpg",
+                frame,
+                [int(cv.IMWRITE_JPEG_QUALITY), img_quality],
+            )
+        log("Saved image " + str(last_image))
+        return True
 
 
-def dummy_take_images(sock):
-    global img_counter
-    img = os.getenv("IMAGE")
-    while True:
-        sock.sleep(1.6)  # Account for delay in saving images
-        with open(f"images/image_{img_counter}.png", "wb") as image_file:
-            image_file.write(base64.b64decode(img))
-        print(f"[ INFO  ] {img_counter} saved.")
-        img_counter += 1
+def take_dummy_image():
+    if stop():
+        log('Detected content in "stop.txt" file. Images will no longer be taken.')
+        sys.exit()
+    with lock:
+        threading.Timer(2.0, take_dummy_image).start()
+        last_image = get_img_cnt() + 1
+        set_img_cnt(last_image)
+        cv.imwrite(f"assets/images/{last_image}.png", cv.imread("sample.png"))
+        cv.imwrite(
+            f"assets/images/{last_image}.jpg",
+            cv.imread("sample.png"),
+            [int(cv.IMWRITE_JPEG_QUALITY), config["image"]["quality"]],
+        )
+        return True
 
 
-def send_images(sock):
-    global img_send_counter
-    while True:
-        sock.sleep(1.4)  # Delay for one second before sending images
-        try:
-            if img_send_counter < img_counter:
-                with open(f"images/image_{img_send_counter}.png", "rb") as image_file:
-                    img = base64.b64encode(image_file.read())
-                    sock.emit("image", {"image": img})
-                print(f"[ INFO  ] {img_send_counter} sent!")
-                img_send_counter += 1
-        except:
-            pass
+def take_images():
+    cam = cv.VideoCapture(config["image"]["device"])
+    cam.set(cv.CAP_PROP_FRAME_WIDTH, config["image"]["width"])
+    cam.set(cv.CAP_PROP_FRAME_HEIGHT, config["image"]["height"])
+    if config["image"]["dummy"]:
+        take_dummy_image()
+    else:
+        take_image(cam)
 
 
-def dummy_send_images():
-    global img_send_counter
-    while True:
-        time.sleep(1.4)
-        if img_send_counter < img_counter:
-            print(f"[ INFO  ] {img_send_counter} dummy sent!")
-            img_send_counter += 1
+@app.route("/")
+def index():
+    return "Hello from Avalon!"
 
 
-if config["groundstation"]["dummy"]:
-    take = dummy_take_images if config["image"]["dummy"] else take_images
-    take_t = Thread(target=take, args=(time,))
-    send_t = Thread(target=dummy_send_images)
-    take_t.start()
-    send_t.start()
-else:
-    sio = socketio.Client()
-
-    @sio.event
-    def connect():
-        print("[SUCCESS] Connected to GroundStation with sid:", sio.sid)
+@app.route("/last_image")
+def get_last_image():
+    return {"result": get_img_cnt()}
 
 
-    @sio.event
-    def connect_error(_):
-        print("[ ERROR ] Connection Refused: Make sure GroundStation is running and accepting connections.")
+@app.route("/image/<int:image_id>")
+def image(image_id):
+    if image_id > get_img_cnt():
+        return {"result": "Image not found"}
+    filename = (
+        f"assets/images/{image_id}.jpg"
+        if config["image"]["quality"] > 0
+        else f"assets/images/{image_id}.png"
+    )
+    return send_file(filename, mimetype="image/png")
 
 
-    @sio.event
-    def disconnect():
-        print("[ ERROR ] Connection to GroundStation was closed, possibly due to program termination. FlightSoftware is attempting to re-initiate a connection.")
-
-
-    sio.connect(f"http://{config['groundstation']['host']}:{config['groundstation']['port']}")
-
-    take = dummy_take_images if config["image"]["dummy"] else take_images
-    sio.start_background_task(take, sio)
-    sio.start_background_task(send_images, sio)
+if __name__ == "__main__":
+    set_img_cnt(-1)
+    take_images()
+    app.run(host="0.0.0.0", port=4000, debug=True, threaded=True)

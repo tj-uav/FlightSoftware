@@ -19,5 +19,8 @@ backup_tle.txt
 config.json
 .env
 
-/images/*
-!/images/sample.png
+/assets/images/*
+!/assets/images/sample.png
+fs.log
+stop.txt
+img_cnt.txt
