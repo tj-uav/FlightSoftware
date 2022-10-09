@@ -1,11 +1,14 @@
 import json
 import os
 import sys
+import subprocess
 
 from flask import Flask, send_file
 import threading
 import cv2 as cv
 import datetime
+
+IMAGE_COMMAND = ["gphoto2", "--capture-image-and-download", "--force-overwrite", "--filename"]
 
 with open("config.json", "r") as file:
     config = json.load(file)
@@ -38,29 +41,15 @@ def set_img_cnt(cnt: int):
         file.write(str(cnt))
 
 
-def take_image(cam: cv.VideoCapture):
+def take_image():
     if stop():
         log('Detected content in "stop.txt" file. Images will no longer be taken.')
         sys.exit()
     with lock:
-        threading.Timer(2.0, take_image, [cam]).start()
-        ret, frame = cam.read()
-        if not ret:
-            return False
-        log("Captured frame")
-        last_image = get_img_cnt() + 1
+        threading.Timer(5.0, take_image).start()
+        last_image = get_img_cnt()
         set_img_cnt(last_image)
-        img_quality = config["image"]["quality"]
-        if img_quality == -1:
-            cv.imwrite(f"assets/images/{last_image}.png", frame)
-        else:
-            cv.imwrite(
-                f"assets/images/{last_image}.jpg",
-                frame,
-                [int(cv.IMWRITE_JPEG_QUALITY), img_quality],
-            )
-        log("Saved image " + str(last_image))
-        return True
+        subprocess.Popen(IMAGE_COMMAND + [f"assets/images/{last_image + 1}.png"])
 
 
 def take_dummy_image():
@@ -68,26 +57,18 @@ def take_dummy_image():
         log('Detected content in "stop.txt" file. Images will no longer be taken.')
         sys.exit()
     with lock:
-        threading.Timer(2.0, take_dummy_image).start()
-        last_image = get_img_cnt() + 1
+        threading.Timer(5.0, take_dummy_image).start()
+        last_image = get_img_cnt()
         set_img_cnt(last_image)
-        cv.imwrite(f"assets/images/{last_image}.png", cv.imread("sample.png"))
-        cv.imwrite(
-            f"assets/images/{last_image}.jpg",
-            cv.imread("sample.png"),
-            [int(cv.IMWRITE_JPEG_QUALITY), config["image"]["quality"]],
-        )
-        return True
+        img = cv.imread("assets/images/sample.png")
+        cv.imwrite(f"assets/images/{last_image + 1}.png", img)
 
 
 def take_images():
-    cam = cv.VideoCapture(config["image"]["device"])
-    cam.set(cv.CAP_PROP_FRAME_WIDTH, config["image"]["width"])
-    cam.set(cv.CAP_PROP_FRAME_HEIGHT, config["image"]["height"])
     if config["image"]["dummy"]:
         take_dummy_image()
     else:
-        take_image(cam)
+        take_image()
 
 
 @app.route("/")
@@ -104,11 +85,7 @@ def get_last_image():
 def image(image_id):
     if image_id > get_img_cnt():
         return {"result": "Image not found"}
-    filename = (
-        f"assets/images/{image_id}.jpg"
-        if config["image"]["quality"] > 0
-        else f"assets/images/{image_id}.png"
-    )
+    filename = f"assets/images/{image_id}.png"
     return send_file(filename, mimetype="image/png")
 
 
