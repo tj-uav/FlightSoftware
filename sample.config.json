@@ -1,9 +1,5 @@
 {
     "image": {
         "dummy": true,
-        "device": 1,
-        "width": 4208,
-        "height": 3120,
-        "quality": 95
     }
 }
