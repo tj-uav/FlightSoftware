@@ -9,8 +9,9 @@ import cv2 as cv
 import datetime
 
 IMAGE_COMMAND = ["gphoto2", "--capture-image-and-download", "--force-overwrite", "--filename"]
+FILEPATH = "/home/tjuav/FlightSoftware"
 
-with open("config.json", "r") as file:
+with open(FILEPATH + "/config.json", "r") as file:
     config = json.load(file)
 
 
@@ -21,23 +22,23 @@ lock = threading.Lock()
 
 def log(text: str):
     print(str(datetime.datetime.now()) + " | " + text)
-    with open("fs.log", "a", encoding="utf-8") as file:
+    with open(FILEPATH + "/fs.log", "a", encoding="utf-8") as file:
         file.write(str(datetime.datetime.now()) + " | " + text + "\n")
 
 
 def stop():
-    if os.path.getsize("stop.txt") > 0:
+    if os.path.getsize(FILEPATH + "/stop.txt") > 0:
         return True
     return False
 
 
 def get_img_cnt() -> int:
-    with open("img_cnt.txt", "r", encoding="utf-8") as file:
+    with open(FILEPATH + "/img_cnt.txt", "r", encoding="utf-8") as file:
         return int(file.read())
 
 
 def set_img_cnt(cnt: int):
-    with open("img_cnt.txt", "w", encoding="utf-8") as file:
+    with open(FILEPATH + "/img_cnt.txt", "w", encoding="utf-8") as file:
         file.write(str(cnt))
 
 
@@ -48,8 +49,8 @@ def take_image():
     with lock:
         threading.Timer(2.0, take_image).start()
         last_image = get_img_cnt()
-        set_img_cnt(last_image)
-        subprocess.Popen(IMAGE_COMMAND + [f"assets/images/{last_image + 1}.png"])
+        set_img_cnt(last_image + 1)
+        subprocess.Popen(IMAGE_COMMAND + [f"{FILEPATH}/assets/images/{last_image + 1}.png"])
 
 
 def take_dummy_image():
@@ -59,9 +60,9 @@ def take_dummy_image():
     with lock:
         threading.Timer(2.0, take_dummy_image).start()
         last_image = get_img_cnt()
-        set_img_cnt(last_image)
-        img = cv.imread("assets/images/sample.png")
-        cv.imwrite(f"assets/images/{last_image + 1}.png", img)
+        set_img_cnt(last_image + 1)
+        img = cv.imread(FILEPATH + "/assets/images/sample.png")
+        cv.imwrite(f"{FILEPATH}/assets/images/{last_image + 1}.png", img)
 
 
 def take_images():
@@ -85,7 +86,7 @@ def get_last_image():
 def image(image_id):
     if image_id > get_img_cnt():
         return {"result": "Image not found"}
-    filename = f"assets/images/{image_id}.png"
+    filename = f"{FILEPATH}/assets/images/{image_id}.png"
     return send_file(filename, mimetype="image/png")
 
 
