@@ -1,0 +1,12 @@
+[Unit]
+Description=TJ UAV FlightSoftware
+After=multi-user.target
+
+[Service]
+Type=simple
+Restart=always
+ExecStart=/home/tjuav/FlightSoftware/start.sh
+ExecStop=/home/tjuav/FlightSoftware/stop.sh
+
+[Install]
+WantedBy=multi-user.target
