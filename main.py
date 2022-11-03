@@ -46,7 +46,7 @@ def take_image():
         log('Detected content in "stop.txt" file. Images will no longer be taken.')
         sys.exit()
     with lock:
-        threading.Timer(5.0, take_image).start()
+        threading.Timer(2.0, take_image).start()
         last_image = get_img_cnt()
         set_img_cnt(last_image)
         subprocess.Popen(IMAGE_COMMAND + [f"assets/images/{last_image + 1}.png"])
@@ -57,7 +57,7 @@ def take_dummy_image():
         log('Detected content in "stop.txt" file. Images will no longer be taken.')
         sys.exit()
     with lock:
-        threading.Timer(5.0, take_dummy_image).start()
+        threading.Timer(2.0, take_dummy_image).start()
         last_image = get_img_cnt()
         set_img_cnt(last_image)
         img = cv.imread("assets/images/sample.png")
