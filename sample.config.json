@@ -1,5 +1,6 @@
 {
     "image": {
-        "dummy": true,
-    }
+        "dummy": false
+    },
+    "filepath": "/home/tjuav/FlightSoftware"
 }
