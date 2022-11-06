@@ -44,10 +44,13 @@ def set_img_cnt(cnt: int):
 # https://github.com/jdemaeyer/ice/blob/master/ice/__init__.py
 def set_config(camera, context, config_name, value):
     log("Setting '{}' to '{}'".format(config_name, value))
-    config, widget = self._get_widget(config_name)
+    config = gp.check_result(
+                gp.gp_camera_get_config(camera, context))
+    widget = gp.check_result(
+                gp.gp_widget_get_child_by_name(config, config_name))
     gp.check_result(gp.gp_widget_set_value(widget, value))
     gp.check_result(
-            gp.gp_camera_set_config(camera, config, self.context))
+            gp.gp_camera_set_config(camera, config, context))
     log("Set '{}' to '{}'".format(config_name, value))
 
 def take_image():
