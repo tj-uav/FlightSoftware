@@ -86,8 +86,11 @@ def take_image():
     log(text.text)
     context = gp.gp_context_new()
     # Set aperture, iso, shutterspeed
+    time.sleep(0.5)
     set_config(camera, context, "f-number", config["image"]["f-number"])
+    time.sleep(0.5)
     set_config(camera, context, "iso", config["image"]["iso"])
+    time.sleep(0.5)
     set_config(camera, context, "shutterspeed", config["image"]["shutterspeed"])
     captime = time.perf_counter()
     while True:
