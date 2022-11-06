@@ -55,7 +55,7 @@ def set_config(camera, context, config_name, value):
 
 def take_image():
     log('Please connect and switch on the camera')
-    camera = gp.Camera()
+    error, camera = gp.gp_camera_new()
     while True:
         error = gp.gp_camera_init(camera)
         if error >= gp.GP_OK:
@@ -67,6 +67,8 @@ def take_image():
             raise gp.GPhoto2Error(error)
         log("No Camera Found, trying again")
         time.sleep(1)
+    error, text = gp.gp_camera_get_summary(camera)
+    log(text.text)
     context = gp.gp_context_new()
     set_config(camera, context, "f-number", config["image"]["f-number"])
     set_config(camera, context, "iso", config["image"]["iso"])
@@ -75,6 +77,7 @@ def take_image():
     while True:
         if stop():
             log('Detected content in "stop.txt" file. Images will no longer be taken.')
+            camera.exit()
             sys.exit()
         with lock:
             last_image = get_img_cnt()
