@@ -1,6 +1,9 @@
 {
     "image": {
-        "dummy": false
+        "dummy": false,
+        "f-number": "f/10",
+        "shutterspeed": "1/2000",
+        "iso": "800" 
     },
     "filepath": "/home/tjuav/FlightSoftware"
 }
