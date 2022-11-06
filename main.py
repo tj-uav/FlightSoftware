@@ -66,7 +66,7 @@ def take_image():
             # some other error we can't handle here
             raise gp.GPhoto2Error(error)
         log("No Camera Found, trying again")
-        time.sleep(1)
+        time.sleep(2)
     error, text = gp.gp_camera_get_summary(camera)
     log(text.text)
     context = gp.gp_context_new()
@@ -110,7 +110,8 @@ def take_images():
     if config["image"]["dummy"]:
         take_dummy_image()
     else:
-        threading.Thread(target = take_image).start()
+        t = threading.Thread(target = take_image)
+        t.start()
 
 
 @app.route("/")
