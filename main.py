@@ -80,13 +80,13 @@ def take_image():
             camera.exit()
             sys.exit()
         with lock:
-            last_image = get_img_cnt()
-            set_img_cnt(last_image + 1)
             if time.perf_counter() - captime > IMAGE_INTERVAL:
                 camera.trigger_capture()
                 captime = time.perf_counter()
             event_type, event_data = camera.wait_for_event(1000)
             if event_type == gp.GP_EVENT_FILE_ADDED:
+                last_image = get_img_cnt()
+                set_img_cnt(last_image + 1)
                 cam_file = camera.file_get(
                     event_data.folder, event_data.name, gp.GP_FILE_TYPE_NORMAL)
                 target_path = f"{FILEPATH}/assets/images/{last_image + 1}.png"
