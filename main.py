@@ -91,7 +91,7 @@ def take_image():
                     event_data.folder, event_data.name, gp.GP_FILE_TYPE_NORMAL)
                 target_path = f"{FILEPATH}/assets/images/{last_image + 1}.png"
                 log("Image is being saved to {}".format(target_path))
-            cam_file.save(target_path)
+                cam_file.save(target_path)
 
 
 def take_dummy_image():
