@@ -27,10 +27,20 @@ def log(text: str):
 
 
 def stop():
+    """
+    Checks if stop.txt has any contents, and if so stops the script
+    """
     if os.path.getsize(FILEPATH + "/stop.txt") > 0:
         return True
     return False
 
+def wait():
+    """
+    Checks if wait.txt has any contents, and if so, does not take images but continues to run the script
+    """
+    if os.path.getsize(FILEPATH + "/wait.txt") > 0:
+        return True
+    return False
 
 def get_img_cnt() -> int:
     with open(FILEPATH + "/img_cnt.txt", "r", encoding="utf-8") as file:
@@ -43,6 +53,10 @@ def set_img_cnt(cnt: int):
 
 # https://github.com/jdemaeyer/ice/blob/master/ice/__init__.py
 def set_config(camera, context, config_name, value):
+    """
+    Change a setting on the camera
+    TODO: Reattempt setting change if error state occurs
+    """
     log("Setting '{}' to '{}'".format(config_name, value))
     config = gp.check_result(
                 gp.gp_camera_get_config(camera, context))
@@ -56,7 +70,7 @@ def set_config(camera, context, config_name, value):
 def take_image():
     log('Please connect and switch on the camera')
     error, camera = gp.gp_camera_new()
-    while True:
+    while True: # Wait for camera to be connected
         error = gp.gp_camera_init(camera)
         if error >= gp.GP_OK:
             # operation completed successfully so exit loop
@@ -67,9 +81,11 @@ def take_image():
             raise gp.GPhoto2Error(error)
         log("No Camera Found, trying again")
         time.sleep(2)
+    # Log the detected camera
     error, text = gp.gp_camera_get_summary(camera)
     log(text.text)
     context = gp.gp_context_new()
+    # Set aperture, iso, shutterspeed
     set_config(camera, context, "f-number", config["image"]["f-number"])
     set_config(camera, context, "iso", config["image"]["iso"])
     set_config(camera, context, "shutterspeed", config["image"]["shutterspeed"])
@@ -80,9 +96,12 @@ def take_image():
             camera.exit()
             sys.exit()
         with lock:
-            if time.perf_counter() - captime > IMAGE_INTERVAL:
+            # Capture image every image interval, unless told to wait
+            if time.perf_counter() - captime > IMAGE_INTERVAL and not wait():
                 camera.trigger_capture()
+                log("Image captured")
                 captime = time.perf_counter()
+            # Wait for new image to appear, and download and save that image directly from camera
             event_type, event_data = camera.wait_for_event(1000)
             if event_type == gp.GP_EVENT_FILE_ADDED:
                 last_image = get_img_cnt()

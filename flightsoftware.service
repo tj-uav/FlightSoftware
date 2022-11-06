@@ -5,7 +5,6 @@ After=multi-user.target
 [Service]
 Type=simple
 Restart=always
-ExecPre=/bin/sleep 30
 ExecStart=/home/tjuav/FlightSoftware/start.sh
 ExecStop=/home/tjuav/FlightSoftware/stop.sh
 
