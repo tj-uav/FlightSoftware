@@ -2,3 +2,4 @@ python-dotenv
 flask
 opencv-python
 black
+gphoto2
