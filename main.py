@@ -55,7 +55,6 @@ def set_img_cnt(cnt: int):
 def set_config(camera, context, config_name, value):
     """
     Change a setting on the camera
-    TODO: Reattempt setting change if error state occurs
     """
     log("Setting '{}' to '{}'".format(config_name, value))
     config = gp.check_result(
@@ -86,6 +85,7 @@ def take_image():
     log(text.text)
     context = gp.gp_context_new()
     # Set aperture, iso, shutterspeed
+    # The camera takes some time to "ramp up" to the setting instead of instantly setting the setting, so we wait 2 seconds between each setting change
     time.sleep(2)
     set_config(camera, context, "f-number", config["image"]["f-number"])
     time.sleep(2)
