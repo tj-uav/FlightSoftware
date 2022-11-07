@@ -92,7 +92,7 @@ def take_image():
     set_config(camera, context, "iso", config["image"]["iso"])
     time.sleep(2)
     set_config(camera, context, "shutterspeed", config["image"]["shutterspeed"])
-    captime = time.perf_counter()
+    captime = time.time()
     while True:
         if stop():
             log('Detected content in "stop.txt" file. Images will no longer be taken.')
@@ -100,10 +100,10 @@ def take_image():
             sys.exit()
         with lock:
             # Capture image every image interval, unless told to wait
-            if time.perf_counter() - captime > IMAGE_INTERVAL and not wait():
+            if time.time() - captime > IMAGE_INTERVAL and not wait():
                 camera.trigger_capture()
                 log("Image captured")
-                captime = time.perf_counter()
+                captime = time.time()
             # Wait for new image to appear, and download and save that image directly from camera
             event_type, event_data = camera.wait_for_event(1000)
             if event_type == gp.GP_EVENT_FILE_ADDED:
