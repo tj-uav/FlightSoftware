@@ -42,6 +42,21 @@ def wait():
         return True
     return False
 
+def change_setting(camera, context):
+    """
+    Checks if config json has changed, and if so updates config and sets new settings
+    """
+    with open(FILEPATH + "/config.json", "r") as file:
+        newconfig = json.load(file)
+    if config["image"]["f-number"] != newconfig["image"]["f-number"] or config["image"]["iso"] != newconfig["image"]["iso"] or config["image"]["shutterspeed"] != newconfig["image"]["shutterspeed"]:
+        config = newconfig
+        set_config(camera, context, "f-number", config["image"]["f-number"])
+        time.sleep(3)
+        set_config(camera, context, "iso", config["image"]["iso"])
+        time.sleep(3)
+        set_config(camera, context, "shutterspeed", config["image"]["shutterspeed"])
+        time.sleep(3)
+
 def get_img_cnt() -> int:
     with open(FILEPATH + "/img_cnt.txt", "r", encoding="utf-8") as file:
         return int(file.read())
@@ -85,12 +100,12 @@ def take_image():
     log(text.text)
     context = gp.gp_context_new()
     # Set aperture, iso, shutterspeed
-    # The camera takes some time to "ramp up" to the setting instead of instantly setting the setting, so we wait 2 seconds between each setting change
-    time.sleep(2)
+    # The camera takes some time to "ramp up" to the setting instead of instantly setting the setting, so we wait 3 seconds between each setting change
+    time.sleep(3)
     set_config(camera, context, "f-number", config["image"]["f-number"])
-    time.sleep(2)
+    time.sleep(3)
     set_config(camera, context, "iso", config["image"]["iso"])
-    time.sleep(2)
+    time.sleep(3)
     set_config(camera, context, "shutterspeed", config["image"]["shutterspeed"])
     captime = time.time()
     while True:
@@ -99,6 +114,8 @@ def take_image():
             camera.exit()
             sys.exit()
         with lock:
+            # Change settings if needed
+            change_setting(camera, context)
             # Capture image every image interval, unless told to wait
             if time.time() - captime > IMAGE_INTERVAL and not wait():
                 camera.trigger_capture()
