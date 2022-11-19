@@ -8,6 +8,7 @@ import threading
 import cv2 as cv
 import gphoto2 as gp
 import datetime, time
+import dronekit
 
 FILEPATH = "/home/tjuav/FlightSoftware"
 IMAGE_INTERVAL = 0.5 # Image interval in seconds
@@ -19,6 +20,7 @@ app = Flask(__name__)
 
 lock = threading.Lock()
 
+image_timestamps = {}
 
 def log(text: str):
     print(str(datetime.datetime.now()) + " | " + text)
@@ -118,6 +120,7 @@ def take_image():
             change_setting(camera, context)
             # Capture image every image interval, unless told to wait
             if time.time() - captime > IMAGE_INTERVAL and not wait():
+                image_time = datetime.datetime.now() # TODO: MARK IMAGE WITH THIS TIME
                 camera.trigger_capture()
                 log("Image captured")
                 captime = time.time()
@@ -129,6 +132,7 @@ def take_image():
                 cam_file = camera.file_get(
                     event_data.folder, event_data.name, gp.GP_FILE_TYPE_NORMAL)
                 target_path = f"{FILEPATH}/assets/images/{last_image + 1}.png"
+                image_timestamps[str(last_image+1)] = str(image_time)
                 log("Image is being saved to {}".format(target_path))
                 cam_file.save(target_path)
 
@@ -152,6 +156,12 @@ def take_images():
         t = threading.Thread(target = take_image)
         t.start()
 
+def gps_data():
+    drone = dronekit.connect('/dev/serial0', baud=57600)
+    while True:
+        with open(FILEPATH + "/gps.log", "a", encoding="utf-8") as file:
+            file.write(str(datetime.datetime.now()) + " | " + str(vehicle.location.global_relative_frame.lat) + ", " + str(vehicle.location.global_relative_frame.lon) + "\n")
+        time.sleep(0.1)
 
 @app.route("/")
 def index():
@@ -174,4 +184,6 @@ def image(image_id):
 if __name__ == "__main__":
     set_img_cnt(-1)
     take_images()
+    t = threading.Thread(target = gps_data)
+    t.start()
     app.run(host="0.0.0.0", port=4000, debug=True, threaded=True)
