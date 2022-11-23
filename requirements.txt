@@ -3,3 +3,4 @@ flask
 opencv-python
 black
 gphoto2
+dronekit
