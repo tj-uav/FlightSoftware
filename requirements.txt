@@ -4,3 +4,4 @@ opencv-python
 black
 gphoto2
 dronekit
+pyserial

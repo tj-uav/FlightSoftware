@@ -1,19 +1,18 @@
 import json
 import os
 import sys
-import subprocess
 
 from flask import Flask, send_file
 import threading
 import cv2 as cv
 import gphoto2 as gp
-import datetime, time
+import datetime
+import time
 import dronekit
 
-FILEPATH = "/home/tjuav/FlightSoftware"
-IMAGE_INTERVAL = 0.5 # Image interval in seconds
+IMAGE_INTERVAL = 0.5  # Image interval in seconds
 
-with open(FILEPATH + "/config.json", "r") as file:
+with open(os.path.join(os.getcwd(), "config.json"), "r", encoding="utf-8") as file:
     config = json.load(file)
 
 app = Flask(__name__)
@@ -22,36 +21,41 @@ lock = threading.Lock()
 
 image_timestamps = {}
 
-def log(text: str):
+
+def log(text: str) -> None:
     print(str(datetime.datetime.now()) + " | " + text)
-    with open(FILEPATH + "/fs.log", "a", encoding="utf-8") as file:
+    with open(os.path.join(os.getcwd(), "fs.log"), "a", encoding="utf-8") as file:
         file.write(str(datetime.datetime.now()) + " | " + text + "\n")
 
 
-def stop():
+def stop() -> bool:
     """
     Checks if stop.txt has any contents, and if so stops the script
     """
-    if os.path.getsize(FILEPATH + "/stop.txt") > 0:
+    if os.path.getsize(os.path.join(os.getcwd(), "stop.txt")) > 0:
         return True
     return False
 
-def wait():
+
+def wait() -> bool:
     """
     Checks if wait.txt has any contents, and if so, does not take images but continues to run the script
     """
-    if os.path.getsize(FILEPATH + "/wait.txt") > 0:
+    if os.path.getsize(os.path.join(os.getcwd(), "wait.txt")) > 0:
         return True
     return False
+
 
 def change_setting(camera, context):
     """
     Checks if config json has changed, and if so updates config and sets new settings
     """
-    with open(FILEPATH + "/config.json", "r") as file:
-        newconfig = json.load(file)
-    if config["image"]["f-number"] != newconfig["image"]["f-number"] or config["image"]["iso"] != newconfig["image"]["iso"] or config["image"]["shutterspeed"] != newconfig["image"]["shutterspeed"]:
-        config = newconfig
+    global config
+    with open(os.path.join(os.getcwd(), "config.json"), "r") as file:
+        new_config = json.load(file)
+
+    if config["image"]["f-number"] != new_config["image"]["f-number"] or config["image"]["iso"] != new_config["image"]["iso"] or config["image"]["shutterspeed"] != new_config["image"]["shutterspeed"]:
+        config = new_config
         set_config(camera, context, "f-number", config["image"]["f-number"])
         time.sleep(3)
         set_config(camera, context, "iso", config["image"]["iso"])
@@ -59,14 +63,16 @@ def change_setting(camera, context):
         set_config(camera, context, "shutterspeed", config["image"]["shutterspeed"])
         time.sleep(3)
 
+
 def get_img_cnt() -> int:
-    with open(FILEPATH + "/img_cnt.txt", "r", encoding="utf-8") as file:
+    with open(os.path.join(os.getcwd(), "img_cnt.txt"), "r", encoding="utf-8") as file:
         return int(file.read())
 
 
 def set_img_cnt(cnt: int):
-    with open(FILEPATH + "/img_cnt.txt", "w", encoding="utf-8") as file:
+    with open(os.path.join(os.getcwd(), "img_cnt.txt"), "w", encoding="utf-8") as file:
         file.write(str(cnt))
+
 
 # https://github.com/jdemaeyer/ice/blob/master/ice/__init__.py
 def set_config(camera, context, config_name, value):
@@ -74,20 +80,18 @@ def set_config(camera, context, config_name, value):
     Change a setting on the camera
     """
     log("Setting '{}' to '{}'".format(config_name, value))
-    config = gp.check_result(
-                gp.gp_camera_get_config(camera, context))
-    widget = gp.check_result(
-                gp.gp_widget_get_child_by_name(config, config_name))
+    current_config = gp.check_result(gp.gp_camera_get_config(camera, context))
+    widget = gp.check_result(gp.gp_widget_get_child_by_name(current_config, config_name))
     gp.check_result(gp.gp_widget_set_value(widget, value))
-    gp.check_result(
-            gp.gp_camera_set_config(camera, config, context))
+    gp.check_result(gp.gp_camera_set_config(camera, current_config, context))
     log("Set '{}' to '{}'".format(config_name, value))
 
+
 def take_image():
-    log('Please connect and switch on the camera')
+    log("Please connect and switch on the camera")
     error, camera = gp.gp_camera_new()
-    while True: # Wait for camera to be connected
-        error = gp.gp_camera_init(camera)
+    while True:  # Wait for camera to be connected
+        error = gp.gp_camera_init(camera, None)
         if error >= gp.GP_OK:
             # operation completed successfully so exit loop
             log("Camera Connected")
@@ -98,8 +102,9 @@ def take_image():
         log("No Camera Found, trying again")
         time.sleep(2)
     # Log the detected camera
-    error, text = gp.gp_camera_get_summary(camera)
+    error, text = gp.gp_camera_get_summary(camera, None)
     log(text.text)
+
     context = gp.gp_context_new()
     # Set aperture, iso, shutterspeed
     # The camera takes some time to "ramp up" to the setting instead of instantly setting the setting, so we wait 3 seconds between each setting change
@@ -109,21 +114,25 @@ def take_image():
     set_config(camera, context, "iso", config["image"]["iso"])
     time.sleep(3)
     set_config(camera, context, "shutterspeed", config["image"]["shutterspeed"])
+
     captime = time.time()
     while True:
         if stop():
             log('Detected content in "stop.txt" file. Images will no longer be taken.')
             camera.exit()
             sys.exit()
+
         with lock:
             # Change settings if needed
             change_setting(camera, context)
+
             # Capture image every image interval, unless told to wait
             if time.time() - captime > IMAGE_INTERVAL and not wait():
-                image_time = datetime.datetime.now() # TODO: MARK IMAGE WITH THIS TIME
+                image_time = datetime.datetime.now()  # TODO: MARK IMAGE WITH THIS TIME
                 camera.trigger_capture()
                 log("Image captured")
                 captime = time.time()
+
             # Wait for new image to appear, and download and save that image directly from camera
             event_type, event_data = camera.wait_for_event(1000)
             if event_type == gp.GP_EVENT_FILE_ADDED:
@@ -131,9 +140,9 @@ def take_image():
                 set_img_cnt(last_image + 1)
                 cam_file = camera.file_get(
                     event_data.folder, event_data.name, gp.GP_FILE_TYPE_NORMAL)
-                target_path = f"{FILEPATH}/assets/images/{last_image + 1}.png"
+                target_path = os.path.join(os.getcwd(), "assets", "images", f"{last_image + 1}.png")
                 image_timestamps[str(last_image+1)] = str(image_time)
-                log("Image is being saved to {}".format(target_path))
+                log(f"Image is being saved to {target_path}")
                 cam_file.save(target_path)
 
 
@@ -145,23 +154,25 @@ def take_dummy_image():
         threading.Timer(2.0, take_dummy_image).start()
         last_image = get_img_cnt()
         set_img_cnt(last_image + 1)
-        img = cv.imread(FILEPATH + "/assets/images/sample.png")
-        cv.imwrite(f"{FILEPATH}/assets/images/{last_image + 1}.png", img)
+        img = cv.imread(os.path.join(os.getcwd(), "assets", "images", "sample.png"))
+        cv.imwrite(os.path.join(os.getcwd(), "assets", "images", f"{last_image + 1}.png"), img)
 
 
 def take_images():
     if config["image"]["dummy"]:
         take_dummy_image()
     else:
-        t = threading.Thread(target = take_image)
-        t.start()
+        image_thread = threading.Thread(target=take_image)
+        image_thread.start()
+
 
 def gps_data():
     drone = dronekit.connect('/dev/serial0', baud=57600)
     while True:
-        with open(FILEPATH + "/gps.log", "a", encoding="utf-8") as file:
+        with open(os.path.join(os.getcwd(), "gps.log"), "a", encoding="utf-8") as file:
             file.write(str(datetime.datetime.now()) + " | " + str(vehicle.location.global_relative_frame.lat) + ", " + str(vehicle.location.global_relative_frame.lon) + "\n")
         time.sleep(0.1)
+
 
 @app.route("/")
 def index():
@@ -177,13 +188,13 @@ def get_last_image():
 def image(image_id):
     if image_id > get_img_cnt():
         return {"result": "Image not found"}
-    filename = f"{FILEPATH}/assets/images/{image_id}.png"
+    filename = os.path.join(os.getcwd(), "assets", "images", f"{image_id}.png")
     return send_file(filename, mimetype="image/png")
 
 
 if __name__ == "__main__":
     set_img_cnt(-1)
     take_images()
-    t = threading.Thread(target = gps_data)
-    t.start()
+    gps_thread = threading.Thread(target=gps_data)
+    gps_thread.start()
     app.run(host="0.0.0.0", port=4000, debug=True, threaded=True)
