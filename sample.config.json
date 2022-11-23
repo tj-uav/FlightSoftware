@@ -5,5 +5,7 @@
         "shutterspeed": "1/2000",
         "iso": "800" 
     },
-    "filepath": "/home/tjuav/FlightSoftware"
+    "uav": {
+        "port": "/dev/serial0"
+    }
 }
