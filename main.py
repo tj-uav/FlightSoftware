@@ -142,6 +142,8 @@ def take_image():
             with uav_lock:
                 uav_loc = uav_handler.location()
             lat1, lon1, alt1, altg1 = uav_loc["lat"], uav_loc["lon"], uav_loc["alt"], uav_loc["altg"]
+            with config_lock:
+                f_number, iso, shutterspeed = current_config["f-number"], current_config["iso"], current_config["shutterspeed"]
             camera.trigger_capture()
             log("Image captured")
             captime = time.time()
@@ -152,7 +154,7 @@ def take_image():
             with uav_lock:
                 uav_loc = uav_handler.location()
             lat2, lon2, alt2, altg2 = uav_loc["lat"], uav_loc["lon"], uav_loc["alt"], uav_loc["altg"]
-            current_image_data = [(lat1 + lat2) / 2, (lon1 + lon2) / 2, (alt1 + alt2) / 2, (altg1 + altg2) / 2]
+            current_image_data = {"lat": (lat1 + lat2) / 2, "lon": (lon1 + lon2) / 2, "alt": (alt1 + alt2) / 2, "altg": (altg1 + altg2) / 2, "f-number": f_number, "iso": iso, "shutterspeed": shutterspeed}
             with img_lock:
                 global img_count
                 img_count += 1
@@ -224,6 +226,14 @@ def get_last_image():
 def get_image_data():
     with img_lock:
         return {"result": image_data}
+
+
+@app.route("/image_data/<int:image_id>")
+def get_image_data_by_id(image_id):
+    with img_lock:
+        if image_id <= img_count:
+            return {"result": image_data[image_id]}
+    return {"result": "Image not found"}
 
 
 @app.route("/image/<int:image_id>")
