@@ -104,7 +104,13 @@ def take_image():
 
     # Set aperture, iso, shutterspeed
     context = gp.gp_context_new()
-    change_settings(camera, context, config["image"]["f-number"], config["image"]["iso"], config["image"]["shutterspeed"])
+    change_settings(
+        camera,
+        context,
+        config["image"]["f-number"],
+        config["image"]["iso"],
+        config["image"]["shutterspeed"],
+    )
 
     captime = time.time()
     while True:
@@ -141,9 +147,18 @@ def take_image():
         else:
             with uav_lock:
                 uav_loc = uav_handler.location()
-            lat1, lon1, alt1, altg1 = uav_loc["lat"], uav_loc["lon"], uav_loc["alt"], uav_loc["altg"]
+            lat1, lon1, alt1, altg1 = (
+                uav_loc["lat"],
+                uav_loc["lon"],
+                uav_loc["alt"],
+                uav_loc["altg"],
+            )
             with config_lock:
-                f_number, iso, shutterspeed = current_config["f-number"], current_config["iso"], current_config["shutterspeed"]
+                f_number, iso, shutterspeed = (
+                    current_config["f-number"],
+                    current_config["iso"],
+                    current_config["shutterspeed"],
+                )
             camera.trigger_capture()
             log("Image captured")
             captime = time.time()
@@ -153,14 +168,28 @@ def take_image():
         if event_type == gp.GP_EVENT_FILE_ADDED:
             with uav_lock:
                 uav_loc = uav_handler.location()
-            lat2, lon2, alt2, altg2 = uav_loc["lat"], uav_loc["lon"], uav_loc["alt"], uav_loc["altg"]
-            current_image_data = {"lat": (lat1 + lat2) / 2, "lon": (lon1 + lon2) / 2, "alt": (alt1 + alt2) / 2, "altg": (altg1 + altg2) / 2, "f-number": f_number, "iso": iso, "shutterspeed": shutterspeed}
+            lat2, lon2, alt2, altg2 = (
+                uav_loc["lat"],
+                uav_loc["lon"],
+                uav_loc["alt"],
+                uav_loc["altg"],
+            )
+            current_image_data = {
+                "lat": (lat1 + lat2) / 2,
+                "lon": (lon1 + lon2) / 2,
+                "alt": (alt1 + alt2) / 2,
+                "altg": (altg1 + altg2) / 2,
+                "f-number": f_number,
+                "iso": iso,
+                "shutterspeed": shutterspeed,
+            }
             with img_lock:
                 global img_count
                 img_count += 1
                 image_data[img_count] = current_image_data
                 cam_file = camera.file_get(
-                    event_data.folder, event_data.name, gp.GP_FILE_TYPE_NORMAL)
+                    event_data.folder, event_data.name, gp.GP_FILE_TYPE_NORMAL
+                )
                 target_path = os.path.join(os.getcwd(), "assets", "images", f"{img_count}.png")
             log(f"Image is being saved to {target_path}")
             cam_file.save(target_path)
@@ -256,7 +285,11 @@ def set_camera_config():
     f = request.json
     with config_lock:
         global new_config
-        new_config = {"f-number": f.get("f-number"), "iso": f.get("iso"), "shutterspeed": f.get("shutterspeed")}
+        new_config = {
+            "f-number": f.get("f-number"),
+            "iso": f.get("iso"),
+            "shutterspeed": f.get("shutterspeed"),
+        }
     with paused_lock:
         global paused_by_script
         paused_by_script = True
@@ -266,7 +299,9 @@ def set_camera_config():
 @app.route("/status")
 def status():
     with paused_lock, stopped_lock:
-        return {"result": {"paused": paused, "paused_by_script": paused_by_script, "stopped": stopped}}
+        return {
+            "result": {"paused": paused, "paused_by_script": paused_by_script, "stopped": stopped}
+        }
 
 
 @app.route("/pause", methods=["POST"])
@@ -305,7 +340,9 @@ def stop_app(_):
 
 
 if __name__ == "__main__":
-    image_thread = threading.Thread(target=take_dummy_image if config["image"]["dummy"] else take_image)
+    image_thread = threading.Thread(
+        target=take_dummy_image if config["image"]["dummy"] else take_image
+    )
     uav_update_thread = threading.Thread(target=update_uav)
     image_thread.start()
     uav_update_thread.start()
