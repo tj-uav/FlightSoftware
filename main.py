@@ -23,6 +23,7 @@ uav_handler.connect()
 uav_lock = threading.Lock()
 
 paused = True
+paused_by_script = False
 paused_lock = threading.Lock()
 
 stopped = False
@@ -32,6 +33,10 @@ img_count = -1
 image_data = {}
 img_lock = threading.Lock()
 
+current_config = {"f-number": None, "iso": None, "shutterspeed": None}
+new_config = None
+config_lock = threading.Lock()
+
 
 def log(text: str) -> None:
     print(str(datetime.datetime.now()) + " | " + text)
@@ -39,22 +44,26 @@ def log(text: str) -> None:
         file.write(str(datetime.datetime.now()) + " | " + text + "\n")
 
 
-def change_setting(camera, context):
-    """
-    Checks if config json has changed, and if so updates config and sets new settings
-    """
-    global config
-    with open(os.path.join(os.getcwd(), "config.json"), "r") as file:
-        new_config = json.load(file)
-
-    if config["image"]["f-number"] != new_config["image"]["f-number"] or config["image"]["iso"] != new_config["image"]["iso"] or config["image"]["shutterspeed"] != new_config["image"]["shutterspeed"]:
-        config = new_config
-        set_config(camera, context, "f-number", config["image"]["f-number"])
-        time.sleep(3)
-        set_config(camera, context, "iso", config["image"]["iso"])
-        time.sleep(3)
-        set_config(camera, context, "shutterspeed", config["image"]["shutterspeed"])
-        time.sleep(3)
+def change_settings(camera, context, f_number=None, iso=None, shutterspeed=None):
+    # The camera takes some time to "ramp up" to the setting instead of instantly setting the setting, so we wait 3 seconds between each setting change
+    global paused_by_script
+    with paused_lock:
+        paused_by_script = True
+    with config_lock:
+        if f_number is not None and f_number != current_config["f-number"]:
+            set_config(camera, context, "f-number", f_number)
+            time.sleep(3)
+            current_config["f-number"] = f_number
+        if iso is not None and iso != current_config["iso"]:
+            set_config(camera, context, "iso", iso)
+            time.sleep(3)
+            current_config["iso"] = iso
+        if shutterspeed is not None and shutterspeed != current_config["shutterspeed"]:
+            set_config(camera, context, "shutterspeed", shutterspeed)
+            time.sleep(3)
+            current_config["shutterspeed"] = shutterspeed
+    with paused_lock:
+        paused_by_script = False
 
 
 # https://github.com/jdemaeyer/ice/blob/master/ice/__init__.py
@@ -93,15 +102,9 @@ def take_image():
     error, text = gp.gp_camera_get_summary(camera, None)
     log(text.text)
 
-    context = gp.gp_context_new()
     # Set aperture, iso, shutterspeed
-    # The camera takes some time to "ramp up" to the setting instead of instantly setting the setting, so we wait 3 seconds between each setting change
-    time.sleep(3)
-    set_config(camera, context, "f-number", config["image"]["f-number"])
-    time.sleep(3)
-    set_config(camera, context, "iso", config["image"]["iso"])
-    time.sleep(3)
-    set_config(camera, context, "shutterspeed", config["image"]["shutterspeed"])
+    context = gp.gp_context_new()
+    change_settings(camera, context, config["image"]["f-number"], config["image"]["iso"], config["image"]["shutterspeed"])
 
     captime = time.time()
     while True:
@@ -112,20 +115,36 @@ def take_image():
                 sys.exit()
 
         # Change settings if needed
-        change_setting(camera, context)
+        do_change = False
+        with config_lock:
+            global new_config
+            if new_config is not None:
+                do_change = True
+                f_number = new_config["f-number"]
+                iso = new_config["iso"]
+                shutterspeed = new_config["shutterspeed"]
+        if do_change:
+            change_settings(camera, context, f_number, iso, shutterspeed)
+            new_config = None
 
         # Capture image every image interval, unless told to wait
         with paused_lock:
-            if paused or time.time() - captime < IMAGE_INTERVAL:
-                time.sleep(0.1)
-                continue
-            else:
-                with uav_lock:
-                    uav_loc = uav_handler.location()
-                lat1, lon1, alt1, altg1 = uav_loc["lat"], uav_loc["lon"], uav_loc["alt"], uav_loc["altg"]
-                camera.trigger_capture()
-                log("Image captured")
-                captime = time.time()
+            is_paused = paused
+            is_paused_by_script = paused_by_script
+        if is_paused or is_paused_by_script:
+            log(f"Paused: {is_paused=} {is_paused_by_script=}")
+            time.sleep(0.5)
+            continue
+        elif time.time() - captime < IMAGE_INTERVAL:
+            time.sleep(0.1)
+            continue
+        else:
+            with uav_lock:
+                uav_loc = uav_handler.location()
+            lat1, lon1, alt1, altg1 = uav_loc["lat"], uav_loc["lon"], uav_loc["alt"], uav_loc["altg"]
+            camera.trigger_capture()
+            log("Image captured")
+            captime = time.time()
 
         # Wait for new image to appear, and download and save that image directly from camera
         event_type, event_data = camera.wait_for_event(1000)
@@ -141,8 +160,8 @@ def take_image():
                 cam_file = camera.file_get(
                     event_data.folder, event_data.name, gp.GP_FILE_TYPE_NORMAL)
                 target_path = os.path.join(os.getcwd(), "assets", "images", f"{img_count}.png")
-                log(f"Image is being saved to {target_path}")
-                cam_file.save(target_path)
+            log(f"Image is being saved to {target_path}")
+            cam_file.save(target_path)
 
 
 def take_dummy_image():
@@ -153,23 +172,29 @@ def take_dummy_image():
                 log("Image-taking has been stopped.")
                 sys.exit()
         with paused_lock:
-            if time.time() - captime > IMAGE_INTERVAL and not paused:
-                with uav_lock:
-                    uav_loc = uav_handler.location()
-                lat, lon, alt, altg = uav_loc["lat"], uav_loc["lon"], uav_loc["alt"], uav_loc["altg"]
-                current_image_data = [lat, lon, alt, altg]
-                with img_lock:
-                    global img_count
-                    img_count += 1
-                    image_data[img_count] = current_image_data
-                    img = cv.imread(os.path.join(os.getcwd(), "assets", "images", "sample.png"))
-                    target_path = os.path.join(os.getcwd(), "assets", "images", f"{img_count}.png")
-                    cv.imwrite(target_path, img)
-                    log(f"Dummy image saved to {target_path}")
-                    captime = time.time()
-            else:
-                time.sleep(0.1)
-                continue
+            is_paused = paused
+            is_paused_by_script = paused_by_script
+        if is_paused or is_paused_by_script:
+            log(f"Paused: {is_paused=} {is_paused_by_script=}")
+            time.sleep(0.5)
+            continue
+        elif time.time() - captime < IMAGE_INTERVAL:
+            time.sleep(0.1)
+            continue
+        else:
+            with uav_lock:
+                uav_loc = uav_handler.location()
+            lat, lon, alt, altg = uav_loc["lat"], uav_loc["lon"], uav_loc["alt"], uav_loc["altg"]
+            current_image_data = [lat, lon, alt, altg]
+            with img_lock:
+                global img_count
+                img_count += 1
+                image_data[img_count] = current_image_data
+                img = cv.imread(os.path.join(os.getcwd(), "assets", "images", "sample.png"))
+                target_path = os.path.join(os.getcwd(), "assets", "images", f"{img_count}.png")
+            cv.imwrite(target_path, img)
+            log(f"Dummy image saved to {target_path}")
+            captime = time.time()
 
 
 def update_uav():
@@ -208,6 +233,30 @@ def image(image_id):
             return {"result": "Image not found"}
     filename = os.path.join(os.getcwd(), "assets", "images", f"{image_id}.png")
     return send_file(filename, mimetype="image/png")
+
+
+@app.route("/config")
+def get_camera_config():
+    with config_lock:
+        return {"result": current_config}
+
+
+@app.route("/setconfig", methods=["POST"])
+def set_camera_config():
+    f = request.json
+    with config_lock:
+        global new_config
+        new_config = {"f-number": f.get("f-number"), "iso": f.get("iso"), "shutterspeed": f.get("shutterspeed")}
+    with paused_lock:
+        global paused_by_script
+        paused_by_script = True
+    return {}
+
+
+@app.route("/status")
+def status():
+    with paused_lock, stopped_lock:
+        return {"result": {"paused": paused, "paused_by_script": paused_by_script, "stopped": stopped}}
 
 
 @app.route("/pause", methods=["POST"])
