@@ -2,7 +2,7 @@ import json
 import os
 import sys
 
-from flask import Flask, send_file
+from flask import Flask, send_file, request
 import threading
 import cv2 as cv
 import gphoto2 as gp
@@ -116,16 +116,16 @@ def take_image():
 
         # Capture image every image interval, unless told to wait
         with paused_lock:
-            if time.time() - captime > IMAGE_INTERVAL and not paused:
+            if paused or time.time() - captime < IMAGE_INTERVAL:
+                time.sleep(0.1)
+                continue
+            else:
                 with uav_lock:
                     uav_loc = uav_handler.location()
                 lat1, lon1, alt1, altg1 = uav_loc["lat"], uav_loc["lon"], uav_loc["alt"], uav_loc["altg"]
                 camera.trigger_capture()
                 log("Image captured")
                 captime = time.time()
-            else:
-                time.sleep(0.1)
-                continue
 
         # Wait for new image to appear, and download and save that image directly from camera
         event_type, event_data = camera.wait_for_event(1000)
@@ -210,7 +210,7 @@ def image(image_id):
     return send_file(filename, mimetype="image/png")
 
 
-@app.route("/pause")
+@app.route("/pause", methods=["POST"])
 def pause():
     with paused_lock:
         global paused
@@ -218,7 +218,7 @@ def pause():
     return {}
 
 
-@app.route("/resume")
+@app.route("/resume", methods=["POST"])
 def resume():
     with paused_lock:
         global paused
@@ -226,12 +226,23 @@ def resume():
     return {}
 
 
-@app.route("/stop")
+# Also uses the GET method for emergency stop from browser
+@app.route("/stop", methods=["GET", "POST"])
 def stop():
     with stopped_lock:
         global stopped
         stopped = True
     return {}
+
+
+@app.teardown_request
+def stop_app(_):
+    is_stopped = None
+    with stopped_lock:
+        is_stopped = stopped
+    if is_stopped:
+        time.sleep(10)
+        os._exit(0)
 
 
 if __name__ == "__main__":

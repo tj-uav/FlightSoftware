@@ -1,3 +1,3 @@
 #!/bin/bash
 
-> /home/tjuav/FlightSoftware/wait.txt
+curl -X POST http://localhost:4000/resume

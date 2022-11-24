@@ -1,3 +1,3 @@
 #!/bin/bash
 
-echo "tjuav" >> /home/tjuav/FlightSoftware/stop.txt
+curl -X POST http://localhost:4000/stop

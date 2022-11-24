@@ -1,3 +1,3 @@
 #!/bin/bash
 
-echo "tjuav" >> /home/tjuav/FlightSoftware/wait.txt
+curl -X POST http://localhost:4000/pause
