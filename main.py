@@ -18,35 +18,25 @@ with open(os.path.join(os.getcwd(), "config.json"), "r", encoding="utf-8") as fi
 
 app = Flask(__name__)
 
-image_data = {}
-
 uav_handler = UAVHandler(config)
 uav_handler.connect()
 uav_lock = threading.Lock()
+
+paused = True
+paused_lock = threading.Lock()
+
+stopped = False
+stopped_lock = threading.Lock()
+
+img_count = -1
+image_data = {}
+img_lock = threading.Lock()
 
 
 def log(text: str) -> None:
     print(str(datetime.datetime.now()) + " | " + text)
     with open(os.path.join(os.getcwd(), "fs.log"), "a", encoding="utf-8") as file:
         file.write(str(datetime.datetime.now()) + " | " + text + "\n")
-
-
-def stop() -> bool:
-    """
-    Checks if stop.txt has any contents, and if so stops the script
-    """
-    if os.path.getsize(os.path.join(os.getcwd(), "stop.txt")) > 0:
-        return True
-    return False
-
-
-def wait() -> bool:
-    """
-    Checks if wait.txt has any contents, and if so, does not take images but continues to run the script
-    """
-    if os.path.getsize(os.path.join(os.getcwd(), "wait.txt")) > 0:
-        return True
-    return False
 
 
 def change_setting(camera, context):
@@ -65,16 +55,6 @@ def change_setting(camera, context):
         time.sleep(3)
         set_config(camera, context, "shutterspeed", config["image"]["shutterspeed"])
         time.sleep(3)
-
-
-def get_img_cnt() -> int:
-    with open(os.path.join(os.getcwd(), "img_cnt.txt"), "r", encoding="utf-8") as file:
-        return int(file.read())
-
-
-def set_img_cnt(cnt: int):
-    with open(os.path.join(os.getcwd(), "img_cnt.txt"), "w", encoding="utf-8") as file:
-        file.write(str(cnt))
 
 
 # https://github.com/jdemaeyer/ice/blob/master/ice/__init__.py
@@ -102,10 +82,11 @@ def take_image():
         if error != gp.GP_ERROR_MODEL_NOT_FOUND:
             # some other error we can't handle here
             raise gp.GPhoto2Error(error)
-        if stop():
-            log('Detected content in "stop.txt" file. Images will no longer be taken.')
-            camera.exit()
-            sys.exit()
+        with stopped_lock:
+            if stopped:
+                log("Image-taking has been stopped.")
+                camera.exit()
+                sys.exit()
         log("No Camera Found, trying again")
         time.sleep(2)
     # Log the detected camera
@@ -124,25 +105,27 @@ def take_image():
 
     captime = time.time()
     while True:
-        if stop():
-            log('Detected content in "stop.txt" file. Images will no longer be taken.')
-            camera.exit()
-            sys.exit()
+        with stopped_lock:
+            if stopped:
+                log("Image-taking has been stopped.")
+                camera.exit()
+                sys.exit()
 
         # Change settings if needed
         change_setting(camera, context)
 
         # Capture image every image interval, unless told to wait
-        if time.time() - captime > IMAGE_INTERVAL and not wait():
-            with uav_lock:
-                uav_loc = uav_handler.location()
-            lat1, lon1, alt1, altg1 = uav_loc["lat"], uav_loc["lon"], uav_loc["alt"], uav_loc["altg"]
-            camera.trigger_capture()
-            log("Image captured")
-            captime = time.time()
-        else:
-            time.sleep(0.1)
-            continue
+        with paused_lock:
+            if time.time() - captime > IMAGE_INTERVAL and not paused:
+                with uav_lock:
+                    uav_loc = uav_handler.location()
+                lat1, lon1, alt1, altg1 = uav_loc["lat"], uav_loc["lon"], uav_loc["alt"], uav_loc["altg"]
+                camera.trigger_capture()
+                log("Image captured")
+                captime = time.time()
+            else:
+                time.sleep(0.1)
+                continue
 
         # Wait for new image to appear, and download and save that image directly from camera
         event_type, event_data = camera.wait_for_event(1000)
@@ -151,40 +134,51 @@ def take_image():
                 uav_loc = uav_handler.location()
             lat2, lon2, alt2, altg2 = uav_loc["lat"], uav_loc["lon"], uav_loc["alt"], uav_loc["altg"]
             current_image_data = [(lat1 + lat2) / 2, (lon1 + lon2) / 2, (alt1 + alt2) / 2, (altg1 + altg2) / 2]
-            last_image = get_img_cnt() + 1
-            set_img_cnt(last_image)
-            image_data[last_image] = current_image_data
-            cam_file = camera.file_get(
-                event_data.folder, event_data.name, gp.GP_FILE_TYPE_NORMAL)
-            target_path = os.path.join(os.getcwd(), "assets", "images", f"{last_image}.png")
-            log(f"Image is being saved to {target_path}")
-            cam_file.save(target_path)
+            with img_lock:
+                global img_count
+                img_count += 1
+                image_data[img_count] = current_image_data
+                cam_file = camera.file_get(
+                    event_data.folder, event_data.name, gp.GP_FILE_TYPE_NORMAL)
+                target_path = os.path.join(os.getcwd(), "assets", "images", f"{img_count}.png")
+                log(f"Image is being saved to {target_path}")
+                cam_file.save(target_path)
 
 
 def take_dummy_image():
     captime = time.time()
     while True:
-        if stop():
-            log('Detected content in "stop.txt" file. Images will no longer be taken.')
-            sys.exit()
-        if time.time() - captime > IMAGE_INTERVAL and not wait():
-            last_image = get_img_cnt()
-            set_img_cnt(last_image + 1)
-            img = cv.imread(os.path.join(os.getcwd(), "assets", "images", "sample.png"))
-            cv.imwrite(os.path.join(os.getcwd(), "assets", "images", f"{last_image + 1}.png"), img)
-            log(f"Dummy image saved to {os.path.join(os.getcwd(), 'assets', 'images', f'{last_image + 1}.png')}")
-            captime = time.time()
-        else:
-            time.sleep(0.1)
-            continue
+        with stopped_lock:
+            if stopped:
+                log("Image-taking has been stopped.")
+                sys.exit()
+        with paused_lock:
+            if time.time() - captime > IMAGE_INTERVAL and not paused:
+                with uav_lock:
+                    uav_loc = uav_handler.location()
+                lat, lon, alt, altg = uav_loc["lat"], uav_loc["lon"], uav_loc["alt"], uav_loc["altg"]
+                current_image_data = [lat, lon, alt, altg]
+                with img_lock:
+                    global img_count
+                    img_count += 1
+                    image_data[img_count] = current_image_data
+                    img = cv.imread(os.path.join(os.getcwd(), "assets", "images", "sample.png"))
+                    target_path = os.path.join(os.getcwd(), "assets", "images", f"{img_count}.png")
+                    cv.imwrite(target_path, img)
+                    log(f"Dummy image saved to {target_path}")
+                    captime = time.time()
+            else:
+                time.sleep(0.1)
+                continue
 
 
 def update_uav():
     while True:
-        if stop():
-            log('Detected content in "stop.txt" file. GPS data will no longer be collected.')
-            uav_handler.vehicle.close()
-            sys.exit()
+        with stopped_lock:
+            if stopped:
+                log("UAV update has been stopped.")
+                uav_handler.vehicle.close()
+                sys.exit()
         with uav_lock:
             uav_handler.update()
         time.sleep(0.1)
@@ -197,25 +191,50 @@ def index():
 
 @app.route("/last_image")
 def get_last_image():
-    return {"result": get_img_cnt()}
+    with img_lock:
+        return {"result": img_count}
 
 
 @app.route("/image_data")
 def get_image_data():
-    return {"result": image_data}
+    with img_lock:
+        return {"result": image_data}
 
 
 @app.route("/image/<int:image_id>")
 def image(image_id):
-    if image_id > get_img_cnt():
-        return {"result": "Image not found"}
+    with img_lock:
+        if image_id > img_count:
+            return {"result": "Image not found"}
     filename = os.path.join(os.getcwd(), "assets", "images", f"{image_id}.png")
     return send_file(filename, mimetype="image/png")
 
 
-if __name__ == "__main__":
-    set_img_cnt(-1)
+@app.route("/pause")
+def pause():
+    with paused_lock:
+        global paused
+        paused = True
+    return {}
 
+
+@app.route("/resume")
+def resume():
+    with paused_lock:
+        global paused
+        paused = False
+    return {}
+
+
+@app.route("/stop")
+def stop():
+    with stopped_lock:
+        global stopped
+        stopped = True
+    return {}
+
+
+if __name__ == "__main__":
     image_thread = threading.Thread(target=take_dummy_image if config["image"]["dummy"] else take_image)
     uav_update_thread = threading.Thread(target=update_uav)
     image_thread.start()
