@@ -33,7 +33,7 @@ img_count = -1
 image_data = {}
 img_lock = threading.Lock()
 
-current_config = {"f-number": None, "iso": None, "shutterspeed": None}
+current_config = {"f-number": None, "iso": None, "shutterspeed": None, "exposurecompensation": None}
 new_config = None
 config_lock = threading.Lock()
 
@@ -44,7 +44,7 @@ def log(text: str) -> None:
         file.write(str(datetime.datetime.now()) + " | " + text + "\n")
 
 
-def change_settings(camera, context, f_number=None, iso=None, shutterspeed=None):
+def change_settings(camera, context, f_number=None, iso=None, shutterspeed=None, exposurecompensation=None):
     # The camera takes some time to "ramp up" to the setting instead of instantly setting the setting, so we wait 3 seconds between each setting change
     global paused_by_script
     with paused_lock:
@@ -62,6 +62,10 @@ def change_settings(camera, context, f_number=None, iso=None, shutterspeed=None)
             set_config(camera, context, "shutterspeed", shutterspeed)
             time.sleep(3)
             current_config["shutterspeed"] = shutterspeed
+        if exposurecompensation is not None and exposurecompensation != current_config["exposurecompensation"]:
+            set_config(camera, context, "exposurecompensation", exposurecompensation)
+            time.sleep(3)
+            current_config["exposurecompensation"] = exposurecompensation
     with paused_lock:
         paused_by_script = False
 
@@ -107,9 +111,10 @@ def take_image():
     change_settings(
         camera,
         context,
-        config["image"]["f-number"],
+        None,  # config["image"]["f-number"],
         config["image"]["iso"],
-        config["image"]["shutterspeed"],
+        None,  # config["image"]["shutterspeed"],
+        config["image"]["exposurecompensation"]
     )
 
     captime = time.time()
@@ -129,8 +134,9 @@ def take_image():
                 f_number = new_config["f-number"]
                 iso = new_config["iso"]
                 shutterspeed = new_config["shutterspeed"]
+                exposurecompensation = new_config["exposurecompensation"]
         if do_change:
-            change_settings(camera, context, f_number, iso, shutterspeed)
+            change_settings(camera, context, f_number, iso, shutterspeed, exposurecompensation)
             new_config = None
 
         # Capture image every image interval, unless told to wait
@@ -147,17 +153,18 @@ def take_image():
         else:
             with uav_lock:
                 uav_loc = uav_handler.location()
-            lat1, lon1, alt1, altg1 = (
+            lat, lon, alt, altg = (
                 uav_loc["lat"],
                 uav_loc["lon"],
                 uav_loc["alt"],
                 uav_loc["altg"],
             )
             with config_lock:
-                f_number, iso, shutterspeed = (
+                f_number, iso, shutterspeed, exposurecompensation = (
                     current_config["f-number"],
                     current_config["iso"],
                     current_config["shutterspeed"],
+                    current_config["exposurecompensation"],
                 )
             camera.trigger_capture()
             log("Image captured")
@@ -166,22 +173,15 @@ def take_image():
         # Wait for new image to appear, and download and save that image directly from camera
         event_type, event_data = camera.wait_for_event(1000)
         if event_type == gp.GP_EVENT_FILE_ADDED:
-            with uav_lock:
-                uav_loc = uav_handler.location()
-            lat2, lon2, alt2, altg2 = (
-                uav_loc["lat"],
-                uav_loc["lon"],
-                uav_loc["alt"],
-                uav_loc["altg"],
-            )
             current_image_data = {
-                "lat": (lat1 + lat2) / 2,
-                "lon": (lon1 + lon2) / 2,
-                "alt": (alt1 + alt2) / 2,
-                "altg": (altg1 + altg2) / 2,
+                "lat": lat,
+                "lon": lon,
+                "alt": alt,
+                "altg": altg,
                 "f-number": f_number,
                 "iso": iso,
                 "shutterspeed": shutterspeed,
+                "exposurecompensation": exposurecompensation,
             }
             with img_lock:
                 global img_count
@@ -289,6 +289,7 @@ def set_camera_config():
             "f-number": f.get("f-number"),
             "iso": f.get("iso"),
             "shutterspeed": f.get("shutterspeed"),
+            "exposurecompensation": f.get("exposurecompensation"),
         }
     with paused_lock:
         global paused_by_script
