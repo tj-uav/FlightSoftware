@@ -153,11 +153,12 @@ def take_image():
         else:
             with uav_lock:
                 uav_loc = uav_handler.location()
-            lat, lon, alt, altg = (
+            lat, lon, alt, altg, heading = (
                 uav_loc["lat"],
                 uav_loc["lon"],
                 uav_loc["alt"],
                 uav_loc["altg"],
+                uav_loc["heading"],
             )
             with config_lock:
                 f_number, iso, shutterspeed, exposurecompensation = (
@@ -178,6 +179,7 @@ def take_image():
                 "lon": lon,
                 "alt": alt,
                 "altg": altg,
+                "heading": heading,
                 "f-number": f_number,
                 "iso": iso,
                 "shutterspeed": shutterspeed,

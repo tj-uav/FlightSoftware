@@ -197,6 +197,7 @@ class UAVHandler:
                 "lon": self.lon,
                 "alt": self.altitude,
                 "altg": self.altitude_global,
+                "heading": self.orientation["yaw"],
             }
         except Exception as e:
             raise GeneralError(str(e)) from e
