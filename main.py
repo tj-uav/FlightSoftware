@@ -99,7 +99,6 @@ def take_image():
             if stopped:
                 log("Image-taking has been stopped.")
                 camera.exit()
-                sys.exit()
         log("No Camera Found, trying again")
         time.sleep(2)
     # Log the detected camera
@@ -123,7 +122,6 @@ def take_image():
             if stopped:
                 log("Image-taking has been stopped.")
                 camera.exit()
-                sys.exit()
 
         # Change settings if needed
         do_change = False
@@ -168,7 +166,7 @@ def take_image():
                     current_config["exposurecompensation"],
                 )
             camera.trigger_capture()
-            log("Image captured")
+            log("Image capture sent")
             captime = time.time()
 
         # Wait for new image to appear, and download and save that image directly from camera
@@ -193,6 +191,10 @@ def take_image():
                     event_data.folder, event_data.name, gp.GP_FILE_TYPE_NORMAL
                 )
                 target_path = os.path.join(os.getcwd(), "assets", "images", f"{img_count}.png")
+                if img_count % 20 == 0:
+                    log(f"Image data is being saved to image_data.json (image {img_count})")
+                    with open("image_data.json", "w") as file:
+                        json.dump(image_data, file, indent=4)
             log(f"Image is being saved to {target_path}")
             cam_file.save(target_path)
 
@@ -203,7 +205,6 @@ def take_dummy_image():
         with stopped_lock:
             if stopped:
                 log("Image-taking has been stopped.")
-                sys.exit()
         with paused_lock:
             is_paused = paused
             is_paused_by_script = paused_by_script
@@ -236,7 +237,6 @@ def update_uav():
             if stopped:
                 log("UAV update has been stopped.")
                 uav_handler.vehicle.close()
-                sys.exit()
         with uav_lock:
             uav_handler.update()
         time.sleep(0.1)
@@ -312,6 +312,9 @@ def pause():
     with paused_lock:
         global paused
         paused = True
+    log("Image data is being saved to image_data.json (since image taking has been paused)")
+    with open("image_data.json", "w") as file:
+        json.dump(image_data, file, indent=4)
     return {}
 
 
@@ -329,6 +332,9 @@ def stop():
     with stopped_lock:
         global stopped
         stopped = True
+    log("Image data is being saved to image_data.json (since image taking has been stopped)")
+    with open("image_data.json", "w") as file:
+        json.dump(image_data, file, indent=4)
     return {}
 
 
@@ -339,7 +345,7 @@ def stop_app(_):
         is_stopped = stopped
     if is_stopped:
         time.sleep(10)
-        os._exit(0)
+        sys.exit(5)
 
 
 if __name__ == "__main__":
