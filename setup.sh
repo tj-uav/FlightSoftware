@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Clone FlightSoftware
-git clone https://github.com/tj-uav/FlightSoftware.git
-cd FlightSoftware
+#git clone https://github.com/tj-uav/FlightSoftware.git
+#cd FlightSoftware
 
 # Install dependencies
 sudo apt install libgphoto2-dev
