@@ -307,7 +307,7 @@ def status():
         }
 
 
-@app.route("/pause", methods=["POST"])
+@app.route("/pause", methods=["GET", "POST"])
 def pause():
     with paused_lock:
         global paused
@@ -318,7 +318,7 @@ def pause():
     return {}
 
 
-@app.route("/resume", methods=["POST"])
+@app.route("/resume", methods=["GET", "POST"])
 def resume():
     with paused_lock:
         global paused

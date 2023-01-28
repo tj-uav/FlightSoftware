@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Check how many images are present
-NUM_FILES_IN_IMAGES = $(ls -1q /home/tjuav/FlightSoftware/assets/images | wc -l)
+NUM_FILES_IN_IMAGES=$(ls -1q /home/tjuav/FlightSoftware/assets/images | wc -l)
 # If any images were saved, then save them and re-generate directory
 if [ $NUM_FILES_IN_IMAGES -gt 1 ]
 then
