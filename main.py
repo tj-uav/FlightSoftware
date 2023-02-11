@@ -335,6 +335,8 @@ def stop():
     log("Image data is being saved to image_data.json (since image taking has been stopped)")
     with open("image_data.json", "w") as file:
         json.dump(image_data, file, indent=4)
+    with open(f"image_data_{time.time()}.json", "w") as file:
+        json.dump(image_data, file, indent=4)
     return {}
 
 

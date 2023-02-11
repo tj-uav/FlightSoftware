@@ -11,6 +11,13 @@ then
     mv /home/tjuav/FlightSoftware/assets/sample.png /home/tjuav/FlightSoftware/assets/images/sample.png
 fi
 
+# If image data exists, save it
+if test -f "/home/tjuav/FlightSoftware/image_data.json"
+then
+    mv /home/tjuav/FlightSoftware/image_data.json "/home/tjuav/FlightSoftware/$(date +%F-%T)"
+    touch image_data.json
+fi
+
 # Activate virtual environment and run FlightSoftware
 source /home/tjuav/FlightSoftware/venv/bin/activate
 python /home/tjuav/FlightSoftware/main.py
