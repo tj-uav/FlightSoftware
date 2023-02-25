@@ -11,7 +11,7 @@ import time
 
 from uav import UAVHandler
 
-IMAGE_INTERVAL = 0.5  # Image interval in seconds
+IMAGE_INTERVAL = 0.75  # Image interval in seconds
 
 with open(os.path.join(os.getcwd(), "config.json"), "r", encoding="utf-8") as file:
     config = json.load(file)
@@ -171,32 +171,40 @@ def take_image():
 
         # Wait for new image to appear, and download and save that image directly from camera
         event_type, event_data = camera.wait_for_event(1000)
-        if event_type == gp.GP_EVENT_FILE_ADDED:
-            current_image_data = {
-                "lat": lat,
-                "lon": lon,
-                "alt": alt,
-                "altg": altg,
-                "heading": heading,
-                "f-number": f_number,
-                "iso": iso,
-                "shutterspeed": shutterspeed,
-                "exposurecompensation": exposurecompensation,
-            }
-            with img_lock:
-                global img_count
-                img_count += 1
-                image_data[img_count] = current_image_data
-                cam_file = camera.file_get(
-                    event_data.folder, event_data.name, gp.GP_FILE_TYPE_NORMAL
-                )
-                target_path = os.path.join(os.getcwd(), "assets", "images", f"{img_count}.png")
-                if img_count % 20 == 0:
-                    log(f"Image data is being saved to image_data.json (image {img_count})")
-                    with open("image_data.json", "w") as file:
-                        json.dump(image_data, file, indent=4)
-            log(f"Image is being saved to {target_path}")
-            cam_file.save(target_path)
+        while event_type != gp.GP_EVENT_FILE_ADDED:
+            log(f"Code {event_type}: {event_data}")
+            with stopped_lock:
+                if stopped:
+                    log("Image-taking has been stopped.")
+                    camera.exit()
+                    return
+            event_type, event_data = camera.wait_for_event(1000)
+        log("Image file path retrieved")
+        current_image_data = {
+            "lat": lat,
+            "lon": lon,
+            "alt": alt,
+            "altg": altg,
+            "heading": heading,
+            "f-number": f_number,
+            "iso": iso,
+            "shutterspeed": shutterspeed,
+            "exposurecompensation": exposurecompensation,
+        }
+        with img_lock:
+            global img_count
+            img_count += 1
+            image_data[img_count] = current_image_data
+            cam_file = camera.file_get(
+                event_data.folder, event_data.name, gp.GP_FILE_TYPE_NORMAL
+            )
+            target_path = os.path.join(os.getcwd(), "assets", "images", f"{img_count}.png")
+            if img_count % 20 == 0:
+                log(f"Image data is being saved to image_data.json (image {img_count})")
+                with open("image_data.json", "w") as file:
+                    json.dump(image_data, file, indent=4)
+        log(f"Image is being saved to {target_path}")
+        cam_file.save(target_path)
 
 
 def take_dummy_image():

@@ -14,7 +14,7 @@ fi
 # If image data exists, save it
 if test -f "/home/tjuav/FlightSoftware/image_data.json"
 then
-    mv /home/tjuav/FlightSoftware/image_data.json "/home/tjuav/FlightSoftware/$(date +%F-%T)"
+    mv /home/tjuav/FlightSoftware/image_data.json "/home/tjuav/FlightSoftware/image_data_restart_$(date +%F-%T).json"
     touch image_data.json
 fi
 
