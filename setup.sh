@@ -5,9 +5,9 @@
 #cd FlightSoftware
 
 # Install dependencies
-sudo apt install libgphoto2-dev
+sudo apt install libgphoto2-dev -y
 
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
