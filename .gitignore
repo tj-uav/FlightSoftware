@@ -22,5 +22,6 @@ config.json
 /assets/images/*
 !/assets/images/sample.png
 fs.log
+gps.log
 stop.txt
 img_cnt.txt

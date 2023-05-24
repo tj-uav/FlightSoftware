@@ -1,9 +1,11 @@
 {
     "image": {
-        "dummy": true,
-        "device": 1,
-        "width": 4208,
-        "height": 3120,
-        "quality": 95
+        "dummy": false,
+        "f-number": "f/10",
+        "shutterspeed": "1/2000",
+        "iso": "800" 
+    },
+    "uav": {
+        "port": "/dev/serial0"
     }
 }

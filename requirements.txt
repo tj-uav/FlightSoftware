@@ -1,4 +1,8 @@
+pre-commit
 python-dotenv
 flask
 opencv-python
 black
+gphoto2
+dronekit
+pyserial
