@@ -140,11 +140,21 @@ class UAVHandler:
             self.orientation,
             self.ground_speed,
             self.air_speed,
+            self.dist_to_wp,
+            self.dist_to_home,
+            self.battery,
+            self.home,
             self.lat,
             self.lon,
             self.connection,
+            self.waypoint,
+            self.waypoints,
+            self.waypoint_index,
+            self.temperature,
+            self.params,
             self.gps,
-        ) = [None] * 9
+            self.servo_outputs,
+        ) = [None] * 19
         self.mode = VehicleMode("MANUAL")
         self.commands = []
         self.armed = False
@@ -158,12 +168,37 @@ class UAVHandler:
         try:
             self.vehicle = connect(self.port, wait_ready=self.wait_for, baud=BAUDRATE)
             pixhawk_stats(self.vehicle)
+            self.make_listeners()
             self.update()
             print("╠ INITIALIZED UAV HANDLER")
             self.logger.info("INITIALIZED UAV HANDLER")
             return {}
         except Exception as e:
             raise GeneralError(str(e)) from e
+
+    def make_listeners(self):
+        self.battery = [0, 0]
+        self.servo_outputs = []
+
+        @self.vehicle.on_message("BATTERY_STATUS")
+        def battery_status_listener(_v, _n, message):
+            battery_id = message.id
+            battery_voltage = message.voltages[0]
+            self.battery[battery_id] = battery_voltage * 0.001  # mV to V
+
+        @self.vehicle.on_message("SERVO_OUTPUT_RAW")
+        def servo_output_raw_listener(_v, _n, message):
+            self.servo_outputs = [
+                message.servo1_raw,
+                message.servo2_raw,
+                message.servo3_raw,
+                message.servo4_raw,
+                message.servo5_raw,
+                message.servo6_raw,
+                message.servo7_raw,
+                message.servo8_raw,
+                message.servo9_raw,
+            ]
 
     def update(self):
         try:
@@ -182,8 +217,30 @@ class UAVHandler:
             self.air_speed = self.vehicle.airspeed * self.mps_to_mph
             self.gps = self.vehicle.gps_0
             self.connection = [self.gps.eph, self.gps.epv, self.gps.satellites_visible]
+            self.home = {
+                "lat": self.vehicle.home_location.lat,
+                "lon": self.vehicle.home_location.lon,
+            }
             self.lat = loc.lat
             self.lon = loc.lon
+            self.waypoint_index = self.vehicle.commands.next - 1
+            try:
+                self.waypoint = self.vehicle.commands[self.waypoint_index]
+                x_dist_to_wp = (
+                    (self.waypoint.x - self.lat)
+                    * (math.cos(self.lat * math.pi / 180) * 69.172)
+                    * 5280
+                )
+                y_dist_to_wp = (self.waypoint.y - self.lon) * 69.172 * 5280
+                self.dist_to_wp = math.sqrt(x_dist_to_wp**2 + y_dist_to_wp**2)
+            except IndexError:
+                self.dist_to_wp = -1
+            x_dist_to_home = (
+                (self.home["lat"] - self.lat) * (math.cos(self.lat * math.pi / 180) * 69.172) * 5280
+            )
+            y_dist_to_home = (self.home["lon"] - self.lon) * 69.172 * 5280
+            self.dist_to_home = math.sqrt(x_dist_to_home**2 + y_dist_to_home**2)
+            self.waypoint = [self.waypoint_index, self.dist_to_wp]
             self.mode = self.vehicle.mode
             self.armed = self.vehicle.armed
             return {}
@@ -204,15 +261,20 @@ class UAVHandler:
 
     def quick(self):
         try:
+            self.update()
             return {
                 "result": {
                     "altitude": self.altitude,
                     "altitude_global": self.altitude_global,
                     "orientation": self.orientation,
+                    "home": self.home,
                     "lat": self.lat,
                     "lon": self.lon,
                     "ground_speed": self.ground_speed,
                     "air_speed": self.air_speed,
+                    "battery": self.battery,
+                    "waypoint": self.waypoint,
+                    "dist_from_home": self.dist_to_home,
                     "connection": self.connection,
                 }
             }
@@ -248,6 +310,29 @@ class UAVHandler:
                 return {"result": "DISARMED (ARMABLE)"}
             else:
                 return {"result": "DISARMED (NOT ARMABLE)"}
+        except Exception as e:
+            raise GeneralError(str(e)) from e
+
+    def arm(self):
+        try:
+            if not self.vehicle.is_armable:
+                self.logger.important("Vehicle is not armable")
+            self.vehicle.arm(wait=True, timeout=15)  # Motors can be started
+            return {}
+        except TimeoutError as e:
+            raise TimeoutError("Vehicle arming timed out") from e
+        except InvalidStateError as e:
+            raise InvalidStateError(str(e)) from e
+        except Exception as e:
+            # raise InvalidStateError("Vehicle is not armable")
+            raise GeneralError(str(e)) from e
+
+    def disarm(self):
+        try:
+            self.vehicle.disarm(wait=True, timeout=15)
+            return {}
+        except TimeoutError as e:
+            raise TimeoutError("Vehicle disarming timed out") from e
         except Exception as e:
             raise GeneralError(str(e)) from e
 
