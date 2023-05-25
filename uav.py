@@ -1,6 +1,7 @@
 from __future__ import annotations
 import logging
 import math
+import random
 
 from dronekit import connect, Command, VehicleMode, Vehicle
 
@@ -338,3 +339,109 @@ class UAVHandler:
 
     def __repr__(self):
         return "UAV Handler"
+
+
+@decorate_all_functions(log, logging.getLogger("groundstation"))
+class DummyUAVHandler(UAVHandler):
+    def __init__(self, config: dict):
+        super().__init__(config)
+        assert self.port == ""
+        self.mode = VehicleMode("AUTO")
+        self.armed = True
+        self.vehicle = type(
+            "DummyVehicle",
+            (object,),
+            {"system_status": type("DummySystemStatus", (object,), {"state": "DUMMY"})},
+        )
+        self.altitude = random.randint(0, 100)
+        self.altitude_global = self.altitude + 250
+        self.orientation = {
+            "yaw": random.randint(0, 360),
+            "roll": random.randint(-20, 20),
+            "pitch": random.randint(-20, 20),
+        }
+        self.ground_speed = random.randint(0, 100)
+        self.air_speed = abs(self.ground_speed + random.randint(-10, 10))
+        self.battery = [random.randint(14, 16), random.randint(42, 50)]
+        self.servo_outputs = []
+        self.connection = [
+            random.randint(100, 200),
+            random.randint(100, 200),
+            random.randint(4, 12),
+        ]
+        self.lat = random.randint(-90, 90)
+        self.lon = random.randint(-180, 180)
+        self.home = {"lat": self.lat, "lon": self.lon}
+        self.waypoint_index = random.randint(0, 10)
+        self.dist_to_wp = random.randint(0, 1000)
+        self.dist_to_home = random.randint(0, 1000)
+        self.waypoint = [self.waypoint_index, self.dist_to_wp]
+
+    # Basic Methods
+
+    def connect(self):
+        try:
+            print("╠ INITIALIZED (Dummy) UAV HANDLER")
+            self.logger.info("INITIALIZED (Dummy) UAV HANDLER")
+            return {}
+        except Exception as e:
+            raise GeneralError(str(e)) from e
+
+    def update(self):
+        try:
+            self.altitude = abs(self.altitude + random.randint(-5, 5))
+            self.altitude_global = self.altitude + 250
+            self.orientation["yaw"] = abs(self.orientation["yaw"] + random.randint(-5, 5))
+            self.orientation["roll"] += random.randint(-1, 1)
+            self.orientation["pitch"] += random.randint(-1, 1)
+            self.ground_speed = abs(self.ground_speed + random.randint(-5, 5))
+            self.air_speed = abs(self.ground_speed + random.randint(-10, 10))
+            self.battery[0] = abs(self.battery[0] + random.randint(-1, 1))
+            self.battery[1] = abs(self.battery[1] + random.randint(-1, 1))
+            self.connection[0] = abs(self.connection[0] + random.randint(-10, 10))
+            self.connection[1] = abs(self.connection[1] + random.randint(-10, 10))
+            self.connection[2] = abs(self.connection[2] + random.randint(-1, 1))
+            self.lat += random.randint(-1, 1)
+            self.lon += random.randint(-1, 1)
+            self.home["lat"] += random.randint(-1, 1)
+            self.home["lon"] += random.randint(-1, 1)
+            self.waypoint_index = abs(self.waypoint_index + random.randint(-1, 1))
+            self.dist_to_wp = abs(self.dist_to_wp + random.randint(-10, 10))
+            self.dist_to_home = abs(self.dist_to_home + random.randint(-10, 10))
+            self.waypoint = [self.waypoint_index, self.dist_to_wp]
+            return {}
+        except Exception as e:
+            raise GeneralError(str(e)) from e
+
+    # Flight Mode
+
+    def get_flight_mode(self):
+        try:
+            return {"result": self.mode.name}
+        except Exception as e:
+            raise GeneralError(str(e)) from e
+
+    # Armed
+
+    def get_armed(self):
+        try:
+            if self.armed:
+                return {"result": "ARMED"}
+            else:
+                return {"result": "DISARMED"}
+        except Exception as e:
+            raise GeneralError(str(e)) from e
+
+    def arm(self):
+        try:
+            self.armed = True
+            return {}
+        except Exception as e:
+            raise GeneralError(str(e)) from e
+
+    def disarm(self):
+        try:
+            self.armed = False
+            return {}
+        except Exception as e:
+            raise GeneralError(str(e)) from e

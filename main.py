@@ -9,7 +9,7 @@ import gphoto2 as gp
 import datetime
 import time
 
-from uav import UAVHandler
+from uav import UAVHandler, DummyUAVHandler
 
 IMAGE_INTERVAL = 0.75  # Image interval in seconds
 
@@ -18,7 +18,10 @@ with open(os.path.join(os.getcwd(), "config.json"), "r", encoding="utf-8") as fi
 
 app = Flask(__name__)
 
-uav_handler = UAVHandler(config)
+if config["uav"]["port"] == "":
+    uav_handler = DummyUAVHandler(config)
+else:
+    uav_handler = UAVHandler(config)
 uav_handler.connect()
 uav_lock = threading.Lock()
 
